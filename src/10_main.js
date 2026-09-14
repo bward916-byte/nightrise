@@ -40,7 +40,7 @@ const Game = {
     p.x = back ? back.x - 70 : to.x0 + 100; p.y = GROUND + 20; p.facing = 1; p.vx = p.vy = 0; Camera.snapTo(p.x, p.y - 100, Camera.zoom);
     this.where = to.name; UI.prompt = null; this.action = null;
     const B = this.makeCanvas(W, H); if (B) { this.noUI = true; this.draw(); this.noUI = false; B.getContext('2d').drawImage(this.canvas, 0, 0); }
-    if (A && B) this.turn = { t: 0, dur: .55, A, B, sign }; UI.setHint(to.name, 2.5);
+    if (A && B) this.turn = { t: 0, dur: .38, A, B, sign }; UI.setHint(to.name, 2.5);
   },
   // ---- helpers scenes use
   movePlayer(dt, x0, x1, y0, y1) {
@@ -91,29 +91,18 @@ const Game = {
     this.scene.draw(this, ctx, cam, pal);
     // night vignette
     const v = ctx.createRadialGradient(cam.w / 2, cam.h / 2, cam.h * .35, cam.w / 2, cam.h / 2, cam.h * .95); v.addColorStop(0, 'rgba(5,6,16,0)'); v.addColorStop(1, 'rgba(5,6,16,.55)'); ctx.fillStyle = v; ctx.fillRect(0, 0, cam.w, cam.h);
-    if (this.turn && !this.noUI) { // whip pan: the street smears past as you swing round the corner
+    if (this.turn && !this.noUI) { // step round the corner: a short clean slide with a settle
       const T = this.turn, k = clamp(T.t / T.dur, 0, 1), W = cam.w, H = cam.h, S = -T.sign;
-      // velocity curve: accelerate hard, coast, settle
-      const e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
-      const spd = Math.pow(Math.sin(Math.PI * k), 2.4);      // peaks briefly mid-swing, settles fast
-      const travel = W * 1.35;
-      const ax = S * e * travel, bx = ax - S * travel;       // old slides out, new follows in
-      const zk = 1 + .08 * spd;                              // slight push in during the swing
+      // ease out with a small overshoot that settles back
+      const e = k < 1 ? 1 - Math.pow(1 - k, 3) : 1, over = Math.sin(k * Math.PI) * .012;
+      const ax = S * (e * W + over * W), bx = ax - S * W;
       ctx.save(); ctx.setTransform(cam.dpr, 0, 0, cam.dpr, 0, 0);
       ctx.fillStyle = '#05060c'; ctx.fillRect(0, 0, W, H);
-      const cw = W * zk, ch = H * zk, ox = (W - cw) / 2, oy = (H - ch) / 2 + Math.sin(k * Math.PI * 2) * 6;
-      const taps = spd > .1 ? 5 : 1, smear = spd * W * .055;
-      ctx.globalAlpha = 1 / taps;
-      for (let i = 0; i < taps; i++) { const off = (i / Math.max(1, taps - 1) - .5) * smear;
-        ctx.drawImage(T.A, ox + ax + off, oy, cw, ch); ctx.drawImage(T.B, ox + bx + off, oy, cw, ch); }
-      ctx.globalAlpha = 1;
-      // vertical streak highlights sell the speed
-      ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(255,225,170,${spd * .03})`;
-      for (let i = 0; i < 10; i++) { const sy = (i * 137 % H); ctx.fillRect(0, sy, W, 1 + spd); }
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.fillStyle = `rgba(4,5,14,${spd * .16})`; ctx.fillRect(0, 0, W, H);
-      // edge vignette pinches in at peak speed
-      const v = ctx.createLinearGradient(0, 0, W, 0); v.addColorStop(0, `rgba(4,5,14,${spd * .5})`); v.addColorStop(.5, 'rgba(4,5,14,0)'); v.addColorStop(1, `rgba(4,5,14,${spd * .5})`); ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
+      ctx.drawImage(T.A, ax, 0, W, H); ctx.drawImage(T.B, bx, 0, W, H);
+      // a soft seam so the two streets read as separate planes
+      const seam = bx + W; const g = ctx.createLinearGradient(seam - 26, 0, seam + 26, 0);
+      g.addColorStop(0, 'rgba(4,5,14,0)'); g.addColorStop(.5, 'rgba(4,5,14,.55)'); g.addColorStop(1, 'rgba(4,5,14,0)');
+      ctx.fillStyle = g; ctx.fillRect(seam - 26, 0, 52, H);
       ctx.restore();
     }
     if (!this.noUI) UI.draw(ctx, this);
