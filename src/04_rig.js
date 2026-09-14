@@ -89,7 +89,7 @@ class Actor {
     let target;
     if (this.emote) { this.emote.t += dt; if (this.emote.t > this.emote.dur) { this.emote = null; this.setExpr('neutral'); } }
     if (this.emote && !this.moving) target = POSTURES[this.emote.name](this.t);
-    else if (this.moving) target = (this.spec.run || spd > this.h * 1.1 ? POSTURES.run : POSTURES.walk)(this.t, this.phase);
+    else if (this.moving) target = (this.spec.run || spd > this.h * 2.6 ? POSTURES.run : POSTURES.walk)(this.t, this.phase);
     else target = POSTURES[this.posture === 'idle' ? g.idle : this.posture] ? POSTURES[this.posture === 'idle' ? g.idle : this.posture](this.t) : POSTURES.idle(this.t);
     if (this.emote && this.moving) { const e = POSTURES[this.emote.name](this.t); target.shF = e.shF; target.elF = e.elF; target.shB = e.shB; target.elB = e.elB; target.head = e.head; }
     // accessory hand overrides when not emoting
