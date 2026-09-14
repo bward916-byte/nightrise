@@ -19,38 +19,40 @@ const StreetScene = {
   name: 'street', where: 'Street',
   enter(G, from) {
     const p = G.player; p.y = GROUND + 20;
-    if (from === 'lobby') { p.x = TOWER.x + TOWER.w / 2; p.facing = 1; } if (from === 'airport') { p.x = G.taxiX; p.facing = -1; }
+    if (from === 'lobby') { G.setStreet(City.home()); p.x = TOWER.x + TOWER.w / 2; p.facing = 1; }
+    if (from === 'airport') { G.setStreet(City.home()); p.x = G.city.taxiX; p.facing = -1; }
+    if (!G.city) G.setStreet(City.home());
     Camera.follow = p; Camera.locked = false; if (!G.introDone) Camera.snapTo(p.x, p.y - 60, 2.4); else { Camera.snapTo(p.x, p.y - 100, 1); Camera.setStop(1); }
   },
   update(G, dt) {
-    const p = G.player; this.where = p.x > G.city.alley.x && p.x < G.city.alley.x + G.city.alley.w ? 'Alley' : 'Street';
-    G.movePlayer(dt, G.city.x0 - 300, G.city.x1 + 300, GROUND + 4, GROUND + WALK_DEPTH);
-    const b = Camera.bounds(); G.crowd.update(dt, p, b); G.cartMan.update(dt);
-    // pickups: coins on the sidewalk
-    for (const c of G.coins) if (!c.got && Math.abs(c.x - p.x) < 18 && Math.abs(c.y - p.y) < 20) { c.got = true; G.cash += c.v; UI.say('+$' + c.v, 1.2); }
-    // hotspot: tower door
-    const door = TOWER.x + TOWER.w / 2;
-    if (Math.abs(p.x - door) < 60) G.setPrompt('Enter lobby', () => G.go('lobby', 'street'));
-    else if (Math.abs(p.x - G.taxiX) < 70) G.setPrompt(`Taxi to airport ($${TAXI_FARE})`, () => { if (G.cash >= TAXI_FARE) { G.cash -= TAXI_FARE; G.go('airport', 'street'); } else UI.say('Need $' + TAXI_FARE + ' for the cab.', 1.5); });
+    const p = G.player, c = G.city; this.where = c.alley && p.x > c.alley.x && p.x < c.alley.x + c.alley.w ? 'Alley' : c.name;
+    G.movePlayer(dt, c.x0 - 300, c.x1 + 300, GROUND + 4, GROUND + WALK_DEPTH);
+    const b = Camera.bounds(); c.crowd.update(dt, p, b); if (c.isHome) G.cartMan.update(dt);
+    for (const cn of c.coins) if (!cn.got && Math.abs(cn.x - p.x) < 18 && Math.abs(cn.y - p.y) < 20) { cn.got = true; G.cash += cn.v; UI.say('+$' + cn.v, 1.2); }
+    const door = TOWER.x + TOWER.w / 2, it = c.inters.find(k => Math.abs(k.x - p.x) < 44);
+    if (c.isHome && Math.abs(p.x - door) < 60) G.setPrompt('Enter lobby', () => G.go('lobby', 'street'));
+    else if (c.taxiX !== null && Math.abs(p.x - c.taxiX) < 70) G.setPrompt(`Taxi to airport ($${TAXI_FARE})`, () => { if (G.cash >= TAXI_FARE) { G.cash -= TAXI_FARE; G.go('airport', 'street'); } else UI.say('Need $' + TAXI_FARE + ' for the cab.', 1.5); });
+    else if (it) G.setPrompt('Cross to ' + City.name(it.cross.dir, it.cross.i), () => G.cross(it));
     else G.setPrompt(null);
   },
   draw(G, ctx, cam, pal) {
-    drawSky(ctx, pal, cam); drawBackdrop(ctx, G.city, cam, pal);
+    const c = G.city;
+    drawSky(ctx, pal, cam); drawBackdrop(ctx, c, cam, pal);
     cam.begin(ctx); inkW(cam.zoom); const b = cam.bounds();
-    for (const bd of G.city.buildings) if (bd.x + bd.w > b.x0 && bd.x < b.x1 && -bd.h < b.y1) drawBuilding(ctx, bd, pal, cam.zoom, bd.tower);
-    if (G.city.alley.x + G.city.alley.w > b.x0 && G.city.alley.x < b.x1 && cam.zoom > .12) drawAlley(ctx, G.city, pal, cam.zoom);
-    drawStreet(ctx, G.city, pal, cam.zoom, cam);
-    G.drawBalconyLedge(ctx, cam.zoom); G.drawRoofEdge(ctx, cam.zoom);
-    if (cam.zoom > .12) { // taxi stand
-      const tx = G.taxiX; cut(ctx, '#12141f', tx - 2, -120, 4, ROAD_Y + 116); cut(ctx, '#ffe36a', tx - 26, -140, 52, 22, 3); ctx.fillStyle = '#1a1a1a'; ctx.font = `bold 11px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('TAXI', tx, -129); ctx.fillStyle = '#ffd36a'; ctx.font = `9px ${FONT}`; ctx.fillText('AIRPORT', tx, -112); glow(ctx, tx, -130, 60, 'rgba(255,227,106,A)', .25);
+    for (const bd of c.buildings) if (bd.x + bd.w > b.x0 && bd.x < b.x1 && -bd.h < b.y1) drawBuilding(ctx, bd, pal, cam.zoom, bd.tower);
+    if (c.alley && c.alley.x + c.alley.w > b.x0 && c.alley.x < b.x1 && cam.zoom > .12) drawAlley(ctx, c, pal, cam.zoom);
+    drawStreet(ctx, c, pal, cam.zoom, cam);
+    if (c.isHome) { G.drawBalconyLedge(ctx, cam.zoom); G.drawRoofEdge(ctx, cam.zoom); }
+    if (c.taxiX !== null && cam.zoom > .12) {
+      const tx = c.taxiX; cut(ctx, '#12141f', tx - 2, -120, 4, ROAD_Y + 116); cut(ctx, '#ffe36a', tx - 26, -140, 52, 22, 3); ctx.fillStyle = '#1a1a1a'; ctx.font = `bold 11px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('TAXI', tx, -129); ctx.fillStyle = '#ffd36a'; ctx.font = `9px ${FONT}`; ctx.fillText('AIRPORT', tx, -112); glow(ctx, tx, -130, 60, 'rgba(255,227,106,A)', .25);
       cut(ctx, '#e8c22a', tx + 40, ROAD_Y + 6, 100, 30, 6); cut(ctx, '#1e2a48', tx + 62, ROAD_Y - 6, 50, 14, 4); ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(tx + 62, ROAD_Y + 36, 8, 0, TAU); ctx.arc(tx + 120, ROAD_Y + 36, 8, 0, TAU); ctx.fill(); cut(ctx, '#ffe36a', tx + 78, ROAD_Y - 14, 24, 8, 2);
     }
-    if (cam.zoom > .3) for (const c of G.coins) if (!c.got && c.x > b.x0 && c.x < b.x1) { ctx.fillStyle = '#ffd95a'; ctx.beginPath(); ctx.ellipse(c.x, c.y - 4 + Math.sin(G.clock * 200 + c.x) * 2, 5, 6, 0, 0, TAU); ctx.fill(); glow(ctx, c.x, c.y - 4, 22, 'rgba(255,217,90,A)', .3); }
-    const actors = G.crowd.visible(b); actors.push(G.player); if (G.cartMan.x > b.x0 - 100 && G.cartMan.x < b.x1 + 100) actors.push(G.cartMan);
-    actors.sort((a, c) => a.y - c.y);
-    if (cam.zoom > .12) G.drawCart(ctx, G.cartMan.x - 62, GROUND + 6, cam.zoom);
+    if (cam.zoom > .3) for (const cn of c.coins) if (!cn.got && cn.x > b.x0 && cn.x < b.x1) { ctx.fillStyle = '#ffd95a'; ctx.beginPath(); ctx.ellipse(cn.x, cn.y - 4 + Math.sin(G.clock * 200 + cn.x) * 2, 5, 6, 0, 0, TAU); ctx.fill(); glow(ctx, cn.x, cn.y - 4, 22, 'rgba(255,217,90,A)', .3); }
+    const actors = c.crowd.visible(b); actors.push(G.player); if (c.isHome && G.cartMan.x > b.x0 - 100 && G.cartMan.x < b.x1 + 100) actors.push(G.cartMan);
+    actors.sort((a, d) => a.y - d.y);
+    if (c.isHome && cam.zoom > .12) G.drawCart(ctx, G.cartMan.x - 62, GROUND + 6, cam.zoom);
     for (const a of actors) a.draw(ctx, cam.zoom);
-    G.crowd.drawBehind(ctx, pal, cam.zoom, b); G.crowd.drawFront(ctx, pal, cam.zoom, b);
+    c.crowd.drawBehind(ctx, pal, cam.zoom, b); c.crowd.drawFront(ctx, pal, cam.zoom, b);
     cam.end(ctx);
   },
 };
@@ -230,19 +232,19 @@ const ApartmentScene = {
 // ---------- BALCONY & ROOF (live in the street world, way up) ----------
 const BalconyScene = {
   name: 'balcony', where: 'Balcony · 83',
-  x0: TOWER.x + TOWER.w + 4, w: 110, y: -(PLAYER_FLOOR - 1) * FLOOR_H,
-  enter(G, from) { const p = G.player; p.x = this.x0 + 30; p.y = this.y; p.facing = 1; Camera.follow = p; Camera.locked = false;
+  get x0() { return TOWER.x + TOWER.w + 4; }, w: 110, y: -(PLAYER_FLOOR - 1) * FLOOR_H,
+  enter(G, from) { G.setStreet(City.home()); const p = G.player; p.x = this.x0 + 30; p.y = this.y; p.facing = 1; Camera.follow = p; Camera.locked = false;
     if (!G.flags.balconyReveal) { G.flags.balconyReveal = true; Camera.snapTo(p.x, p.y - 60, 1.4);
       Camera.play([{ zoom: 1.4, dur: .8, hold: .8 }, { zoom: .11, x: TOWER.x + TOWER.w / 2 + 300, y: this.y + 2200, dur: 3.5, hold: 1.6 }, { zoom: 1.0, x: p.x, dur: 1.2, ease: easeOut }], () => { Camera.setStop(1); p.setEmote('armsUp', 2.2); UI.setHint('That is a long way down.', 3); });
     } else { Camera.snapTo(p.x, p.y - 100, 1); Camera.setStop(1); }
   },
-  update(G, dt) { const p = G.player; G.movePlayer(dt, this.x0 + 12, this.x0 + this.w - 12, this.y, this.y); const b = Camera.bounds(); G.crowd.update(dt, p, b); if (p.x < this.x0 + 40) G.setPrompt('Go inside', () => G.go('apartment', 'balcony')); else G.setPrompt(Camera.stopIndex > 1 ? null : 'Look down', () => Camera.setStop(3)); },
+  update(G, dt) { const p = G.player; G.movePlayer(dt, this.x0 + 12, this.x0 + this.w - 12, this.y, this.y); const b = Camera.bounds(); G.city.crowd.update(dt, p, b); if (p.x < this.x0 + 40) G.setPrompt('Go inside', () => G.go('apartment', 'balcony')); else G.setPrompt(Camera.stopIndex > 1 ? null : 'Look down', () => Camera.setStop(3)); },
   draw(G, ctx, cam, pal) { StreetScene.draw(G, ctx, cam, pal); },
 };
 const RoofScene = {
-  name: 'roof', where: 'Roof', x0: TOWER.x + 30, w: TOWER.w - 60, y: -TOWER.h - 6,
-  enter(G, from) { const p = G.player; p.x = TOWER.x + TOWER.w / 2 - 120; p.y = this.y; p.facing = 1; Camera.follow = p; Camera.locked = false; Camera.snapTo(p.x, p.y - 100, 1); Camera.setStop(1); UI.setHint('The roof. Wind up here.', 2.5); },
-  update(G, dt) { const p = G.player; G.movePlayer(dt, this.x0 + 12, this.x0 + this.w - 12, this.y, this.y); const b = Camera.bounds(); G.crowd.update(dt, p, b); if (Math.abs(p.x - (TOWER.x + TOWER.w / 2 - 150)) < 50) G.setPrompt('Take elevator', () => G.openElevator('roof')); else G.setPrompt(null); },
+  name: 'roof', where: 'Roof', get x0() { return TOWER.x + 30; }, w: TOWER.w - 60, y: -TOWER.h - 6,
+  enter(G, from) { G.setStreet(City.home()); const p = G.player; p.x = TOWER.x + TOWER.w / 2 - 120; p.y = this.y; p.facing = 1; Camera.follow = p; Camera.locked = false; Camera.snapTo(p.x, p.y - 100, 1); Camera.setStop(1); UI.setHint('The roof. Wind up here.', 2.5); },
+  update(G, dt) { const p = G.player; G.movePlayer(dt, this.x0 + 12, this.x0 + this.w - 12, this.y, this.y); const b = Camera.bounds(); G.city.crowd.update(dt, p, b); if (Math.abs(p.x - (TOWER.x + TOWER.w / 2 - 150)) < 50) G.setPrompt('Take elevator', () => G.openElevator('roof')); else G.setPrompt(null); },
   draw(G, ctx, cam, pal) { StreetScene.draw(G, ctx, cam, pal); },
 };
 const SCENES = { street: StreetScene, lobby: LobbyScene, elevator: ElevatorScene, hall: HallScene, apartment: ApartmentScene, balcony: BalconyScene, roof: RoofScene };
