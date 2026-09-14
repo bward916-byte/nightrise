@@ -134,6 +134,8 @@ class Actor {
   }
   draw(ctx, zoom) {
     const s = this.spec;
+    const dep = this.depth || 0;
+    if (dep > 0) { ctx.save(); ctx.translate(this.x, this.y - dep * 210); const k = 1 - dep * .72; ctx.scale(this.facing * k, k); ctx.globalAlpha = 1 - dep * .25; this.drawBody(ctx); ctx.restore(); if (this.speech) this.drawSpeech(ctx, zoom); return; }
     if (typeof Lights !== 'undefined') Lights.groundShadow(ctx, this.x, this.y, this.h, this.h * .38);
     ctx.save(); ctx.translate(this.x, this.y); ctx.scale(this.facing, 1);
     if (zoom < 0.16) { this.drawLOD(ctx); ctx.restore(); return; }
