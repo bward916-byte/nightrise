@@ -34,12 +34,13 @@ const Game = {
     if (this.turn) return;
     const from = this.city, to = City.get(it.cross.dir, it.cross.i), p = this.player;
     const W = Camera.w * Camera.dpr, H = Camera.h * Camera.dpr;
-    const A = this.makeCanvas(W, H); if (A) A.getContext('2d').drawImage(this.canvas, 0, 0);
+    const sign = it.x >= p.x ? 1 : -1;                       // which way you step into the crossing
+    const A = this.makeCanvas(W, H); if (A) { this.noUI = true; this.draw(); this.noUI = false; A.getContext('2d').drawImage(this.canvas, 0, 0); }
     this.setStreet(to); const back = to.inters.find(k => k.cross.dir === from.dir && k.cross.i === from.i);
-    p.x = back ? back.x - 60 : to.x0 + 100; p.y = GROUND + 20; p.facing = 1; p.vx = p.vy = 0; Camera.snapTo(p.x, p.y - 100, Camera.zoom);
+    p.x = back ? back.x - 70 : to.x0 + 100; p.y = GROUND + 20; p.facing = 1; p.vx = p.vy = 0; Camera.snapTo(p.x, p.y - 100, Camera.zoom);
     this.where = to.name; UI.prompt = null; this.action = null;
-    const B = this.makeCanvas(W, H); if (B) { this.draw(); B.getContext('2d').drawImage(this.canvas, 0, 0); }
-    if (A && B) this.turn = { t: 0, dur: .9, A, B, dirSign: 1 }; UI.setHint(to.name, 2.5);
+    const B = this.makeCanvas(W, H); if (B) { this.noUI = true; this.draw(); this.noUI = false; B.getContext('2d').drawImage(this.canvas, 0, 0); }
+    if (A && B) this.turn = { t: 0, dur: .55, A, B, sign }; UI.setHint(to.name, 2.5);
   },
   // ---- helpers scenes use
   movePlayer(dt, x0, x1, y0, y1) {
@@ -86,19 +87,36 @@ const Game = {
   draw() {
     const ctx = this.ctx, cam = Camera, pal = dayPalette();
     ctx.setTransform(cam.dpr, 0, 0, cam.dpr, 0, 0);
+    if (typeof Lights !== 'undefined') Lights.clear();
     this.scene.draw(this, ctx, cam, pal);
     // night vignette
     const v = ctx.createRadialGradient(cam.w / 2, cam.h / 2, cam.h * .35, cam.w / 2, cam.h / 2, cam.h * .95); v.addColorStop(0, 'rgba(5,6,16,0)'); v.addColorStop(1, 'rgba(5,6,16,.55)'); ctx.fillStyle = v; ctx.fillRect(0, 0, cam.w, cam.h);
-    if (this.turn) { // turning the corner: the old view folds away, the new one swings in
-      const k = easeInOut(clamp(this.turn.t / this.turn.dur, 0, 1)), a = k * Math.PI / 2, c = Math.cos(a), sn = Math.sin(a), n = c + sn, W = cam.w, H = cam.h, ow = W * c / n, nw = W * sn / n;
+    if (this.turn && !this.noUI) { // whip pan: the street smears past as you swing round the corner
+      const T = this.turn, k = clamp(T.t / T.dur, 0, 1), W = cam.w, H = cam.h, S = -T.sign;
+      // velocity curve: accelerate hard, coast, settle
+      const e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+      const spd = Math.pow(Math.sin(Math.PI * k), 2.4);      // peaks briefly mid-swing, settles fast
+      const travel = W * 1.35;
+      const ax = S * e * travel, bx = ax - S * travel;       // old slides out, new follows in
+      const zk = 1 + .08 * spd;                              // slight push in during the swing
       ctx.save(); ctx.setTransform(cam.dpr, 0, 0, cam.dpr, 0, 0);
       ctx.fillStyle = '#05060c'; ctx.fillRect(0, 0, W, H);
-      const sq = 1 - .08 * Math.sin(a * 2);
-      ctx.drawImage(this.turn.A, 0, H * (1 - sq) / 2, ow, H * sq); ctx.drawImage(this.turn.B, ow, H * (1 - sq) / 2, nw, H * sq);
-      ctx.fillStyle = `rgba(0,0,0,${.55 * sn})`; ctx.fillRect(0, 0, ow, H); ctx.fillStyle = `rgba(0,0,0,${.55 * c})`; ctx.fillRect(ow, 0, nw, H);
-      ctx.fillStyle = 'rgba(255,255,255,.08)'; ctx.fillRect(ow - 2, 0, 4, H); ctx.restore();
+      const cw = W * zk, ch = H * zk, ox = (W - cw) / 2, oy = (H - ch) / 2 + Math.sin(k * Math.PI * 2) * 6;
+      const taps = spd > .1 ? 5 : 1, smear = spd * W * .055;
+      ctx.globalAlpha = 1 / taps;
+      for (let i = 0; i < taps; i++) { const off = (i / Math.max(1, taps - 1) - .5) * smear;
+        ctx.drawImage(T.A, ox + ax + off, oy, cw, ch); ctx.drawImage(T.B, ox + bx + off, oy, cw, ch); }
+      ctx.globalAlpha = 1;
+      // vertical streak highlights sell the speed
+      ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(255,225,170,${spd * .03})`;
+      for (let i = 0; i < 10; i++) { const sy = (i * 137 % H); ctx.fillRect(0, sy, W, 1 + spd); }
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = `rgba(4,5,14,${spd * .16})`; ctx.fillRect(0, 0, W, H);
+      // edge vignette pinches in at peak speed
+      const v = ctx.createLinearGradient(0, 0, W, 0); v.addColorStop(0, `rgba(4,5,14,${spd * .5})`); v.addColorStop(.5, 'rgba(4,5,14,0)'); v.addColorStop(1, `rgba(4,5,14,${spd * .5})`); ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
+      ctx.restore();
     }
-    UI.draw(ctx, this);
+    if (!this.noUI) UI.draw(ctx, this);
     if (this.state === 'intro') { const s = Camera.seq; if (s && s.i === 1) UI.title(ctx, 'NIGHTRISE', 'a regular guy · floor 83', Math.min(1, s.t)); }
     if (this.fade > 0) { ctx.fillStyle = `rgba(3,4,10,${this.fade})`; ctx.fillRect(0, 0, cam.w, cam.h); }
     Input.drawStick(ctx);
