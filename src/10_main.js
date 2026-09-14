@@ -1,13 +1,12 @@
 // ===== main =====
 const Game = {
-  clock: 0, cash: 0, inv: [null, null, null, null, null, null], where: 'Street', state: 'intro', floor: 0, flags: {}, coins: [], stamps: [], fade: 0, fadeDir: 0, pending: null, flight: null,
+  turn: null, clock: 0, cash: 0, inv: [null, null, null, null, null, null], where: 'Street', state: 'intro', floor: 0, flags: {}, coins: [], stamps: [], fade: 0, fadeDir: 0, pending: null, flight: null,
   init(canvas) {
     this.canvas = canvas; this.ctx = canvas.getContext('2d');
-    this.city = buildCity(); this.crowd = new Crowd(this.city, 240); this.taxiX = TOWER.x - 520;
+    this.setStreet(City.home());
     this.player = new Actor(genPlayer()); this.player.spec.walkSpeed = 3.2 * M; this.player.x = TOWER.x + TOWER.w / 2 + 160; this.player.y = GROUND + 20;
     this.cartMan = new Actor(genCartMan()); this.cartMan.x = this.city.alley.x + 101; this.cartMan.y = GROUND; this.cartMan.facing = -1; this.cartMan.posture = 'sit';
     const r = RNG(31); this.lobbyFolk = [0, 1, 2].map(i => { const a = new Actor(genCharacter(600 + i, i === 0 ? 'business' : i === 1 ? 'fancy' : 'elder')); a.x = [330, 700, 860][i]; a.y = [6, 14, 10][i]; a.facing = i === 0 ? 1 : -1; a.posture = i === 0 ? 'idle' : i === 1 ? 'phone' : 'sit'; if (i === 2) a.y = 4; return a; });
-    for (let i = 0; i < 70; i++) this.coins.push({ x: r.range(this.city.x0, this.city.x1), y: GROUND + r.range(8, WALK_DEPTH), v: r.pick([1, 2, 2, 5, 5, 10]), got: false });
     Object.assign(SCENES, { airport: AirportScene, flight: FlightScene, landmark: LandmarkScene });
     this.crowdAir = [0, 1, 2, 3, 4].map(i => { const a = new Actor(genCharacter(800 + i * 5, i < 2 ? 'business' : i === 2 ? 'tourist' : undefined)); a.x = 300 + i * 220; a.y = 6 + (i % 3) * 8; a.facing = i % 2 ? -1 : 1; a.dir = a.facing; a.wander = i > 2; a.posture = i === 0 ? 'phone' : i === 1 ? 'crossArms' : 'idle'; return a; });
     this.scene = StreetScene; this.resize(); Input.init(canvas); StreetScene.enter(this, null);
@@ -21,9 +20,23 @@ const Game = {
       { zoom: 2.4, dur: 1.2, hold: .5 },
       { zoom: 0.06, x: TOWER.x + TOWER.w / 2, y: -TOWER.h / 2 + 900, dur: 3.2, hold: 1.4 },
       { zoom: 1.0, x: p.x, dur: 1.1, ease: easeOut },
-    ], () => { this.state = 'play'; this.introDone = true; Camera.setStop(1); UI.setHint(Camera.w < 700 ? 'Drag left side to walk · pinch or +/– to zoom' : 'WASD to walk · scroll or +/– to zoom · E to interact · 1–0 poses', 6); });
+    ], () => { this.state = 'play'; this.introDone = true; Camera.setStop(1); UI.setHint(Camera.w < 700 ? 'Drag left side to walk · pinch or +/– to zoom' : 'WASD to walk · E to interact or cross at a corner · scroll to zoom · 1–0 poses', 6); });
   },
   frame(t) { const dt = Math.min(.05, (t - this.last) / 1000); this.last = t; this.update(dt); this.draw(); requestAnimationFrame(t => this.frame(t)); },
+  // ---- streets
+  setStreet(st) { this.city = st; if (!st.crowd) st.crowd = new Crowd(st, 240); if (!st.coins) { const r = RNG(st.id.length * 91 + st.i * 7 + (st.dir === 'ns' ? 3 : 0)); st.coins = []; for (let i = 0; i < 60; i++) st.coins.push({ x: r.range(st.x0, st.x1), y: GROUND + r.range(8, WALK_DEPTH), v: r.pick([1, 2, 2, 5, 5, 10]), got: false }); } },
+  makeCanvas(w, h) { if (typeof document !== 'undefined') { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; } return null; },
+  cross(it) {
+    if (this.turn) return;
+    const from = this.city, to = City.get(it.cross.dir, it.cross.i), p = this.player;
+    const W = Camera.w * Camera.dpr, H = Camera.h * Camera.dpr;
+    const A = this.makeCanvas(W, H); if (A) A.getContext('2d').drawImage(this.canvas, 0, 0);
+    this.setStreet(to); const back = to.inters.find(k => k.cross.dir === from.dir && k.cross.i === from.i);
+    p.x = back ? back.x - 60 : to.x0 + 100; p.y = GROUND + 20; p.facing = 1; p.vx = p.vy = 0; Camera.snapTo(p.x, p.y - 100, Camera.zoom);
+    this.where = to.name; UI.prompt = null; this.action = null;
+    const B = this.makeCanvas(W, H); if (B) { this.draw(); B.getContext('2d').drawImage(this.canvas, 0, 0); }
+    if (A && B) this.turn = { t: 0, dur: .9, A, B, dirSign: 1 }; UI.setHint(to.name, 2.5);
+  },
   // ---- helpers scenes use
   movePlayer(dt, x0, x1, y0, y1) {
     const p = this.player; if (this.state !== 'play') { p.vx = p.vy = 0; return; }
@@ -53,12 +66,13 @@ const Game = {
       else if (id && id.startsWith('emote:')) p.setEmote(id.slice(6), 2.4);
       if (id && !(id.startsWith('fl:') || id === 'esc')) Input.tap = null;
     }
-    if (this.state === 'play' && !this.fadeDir) {
+    if (this.turn) { this.turn.t += dt; if (this.turn.t >= this.turn.dur) this.turn = null; }
+    if (this.state === 'play' && !this.fadeDir && !this.turn) {
       for (const e of EMOTES) if (Input.consume('Digit' + e.key)) p.setEmote(e.name, 2.4);
       if (this.scene !== ElevatorScene && (Input.consume('KeyE') || Input.consume('Space') || Input.consume('Enter')) && this.action) this.action();
       this.scene.update(this, dt);
     } else if (this.scene === ElevatorScene) this.scene.update(this, dt);
-    else { p.vx = p.vy = 0; if (this.scene === StreetScene) { this.crowd.update(dt, p, Camera.bounds()); this.cartMan.update(dt); } }
+    else { p.vx = p.vy = 0; if (this.scene === StreetScene) { this.city.crowd.update(dt, p, Camera.bounds()); if (this.city.isHome) this.cartMan.update(dt); } }
     if (this.scene !== ElevatorScene) p.update(dt);
     this.where = this.scene.where;
     // fades between scenes
@@ -71,6 +85,15 @@ const Game = {
     this.scene.draw(this, ctx, cam, pal);
     // night vignette
     const v = ctx.createRadialGradient(cam.w / 2, cam.h / 2, cam.h * .35, cam.w / 2, cam.h / 2, cam.h * .95); v.addColorStop(0, 'rgba(5,6,16,0)'); v.addColorStop(1, 'rgba(5,6,16,.55)'); ctx.fillStyle = v; ctx.fillRect(0, 0, cam.w, cam.h);
+    if (this.turn) { // turning the corner: the old view folds away, the new one swings in
+      const k = easeInOut(clamp(this.turn.t / this.turn.dur, 0, 1)), a = k * Math.PI / 2, c = Math.cos(a), sn = Math.sin(a), n = c + sn, W = cam.w, H = cam.h, ow = W * c / n, nw = W * sn / n;
+      ctx.save(); ctx.setTransform(cam.dpr, 0, 0, cam.dpr, 0, 0);
+      ctx.fillStyle = '#05060c'; ctx.fillRect(0, 0, W, H);
+      const sq = 1 - .08 * Math.sin(a * 2);
+      ctx.drawImage(this.turn.A, 0, H * (1 - sq) / 2, ow, H * sq); ctx.drawImage(this.turn.B, ow, H * (1 - sq) / 2, nw, H * sq);
+      ctx.fillStyle = `rgba(0,0,0,${.55 * sn})`; ctx.fillRect(0, 0, ow, H); ctx.fillStyle = `rgba(0,0,0,${.55 * c})`; ctx.fillRect(ow, 0, nw, H);
+      ctx.fillStyle = 'rgba(255,255,255,.08)'; ctx.fillRect(ow - 2, 0, 4, H); ctx.restore();
+    }
     UI.draw(ctx, this);
     if (this.state === 'intro') { const s = Camera.seq; if (s && s.i === 1) UI.title(ctx, 'NIGHTRISE', 'a regular guy · floor 83', Math.min(1, s.t)); }
     if (this.fade > 0) { ctx.fillStyle = `rgba(3,4,10,${this.fade})`; ctx.fillRect(0, 0, cam.w, cam.h); }
