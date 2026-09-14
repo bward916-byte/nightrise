@@ -19,7 +19,7 @@ const StreetScene = {
   name: 'street', where: 'Street',
   enter(G, from) {
     const p = G.player; p.y = GROUND + 20;
-    if (from === 'lobby') { p.x = TOWER.x + TOWER.w / 2; p.facing = 1; }
+    if (from === 'lobby') { p.x = TOWER.x + TOWER.w / 2; p.facing = 1; } if (from === 'airport') { p.x = G.taxiX; p.facing = -1; }
     Camera.follow = p; Camera.locked = false; if (!G.introDone) Camera.snapTo(p.x, p.y - 60, 2.4); else { Camera.snapTo(p.x, p.y - 100, 1); Camera.setStop(1); }
   },
   update(G, dt) {
@@ -30,7 +30,9 @@ const StreetScene = {
     for (const c of G.coins) if (!c.got && Math.abs(c.x - p.x) < 18 && Math.abs(c.y - p.y) < 20) { c.got = true; G.cash += c.v; UI.say('+$' + c.v, 1.2); }
     // hotspot: tower door
     const door = TOWER.x + TOWER.w / 2;
-    G.setPrompt(Math.abs(p.x - door) < 60 ? 'Enter lobby' : null, () => G.go('lobby', 'street'));
+    if (Math.abs(p.x - door) < 60) G.setPrompt('Enter lobby', () => G.go('lobby', 'street'));
+    else if (Math.abs(p.x - G.taxiX) < 70) G.setPrompt(`Taxi to airport ($${TAXI_FARE})`, () => { if (G.cash >= TAXI_FARE) { G.cash -= TAXI_FARE; G.go('airport', 'street'); } else UI.say('Need $' + TAXI_FARE + ' for the cab.', 1.5); });
+    else G.setPrompt(null);
   },
   draw(G, ctx, cam, pal) {
     drawSky(ctx, pal, cam); drawBackdrop(ctx, G.city, cam, pal);
@@ -39,6 +41,10 @@ const StreetScene = {
     if (G.city.alley.x + G.city.alley.w > b.x0 && G.city.alley.x < b.x1 && cam.zoom > .12) drawAlley(ctx, G.city, pal, cam.zoom);
     drawStreet(ctx, G.city, pal, cam.zoom, cam);
     G.drawBalconyLedge(ctx, cam.zoom); G.drawRoofEdge(ctx, cam.zoom);
+    if (cam.zoom > .12) { // taxi stand
+      const tx = G.taxiX; cut(ctx, '#12141f', tx - 2, -120, 4, ROAD_Y + 116); cut(ctx, '#ffe36a', tx - 26, -140, 52, 22, 3); ctx.fillStyle = '#1a1a1a'; ctx.font = `bold 11px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('TAXI', tx, -129); ctx.fillStyle = '#ffd36a'; ctx.font = `9px ${FONT}`; ctx.fillText('AIRPORT', tx, -112); glow(ctx, tx, -130, 60, 'rgba(255,227,106,A)', .25);
+      cut(ctx, '#e8c22a', tx + 40, ROAD_Y + 6, 100, 30, 6); cut(ctx, '#1e2a48', tx + 62, ROAD_Y - 6, 50, 14, 4); ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(tx + 62, ROAD_Y + 36, 8, 0, TAU); ctx.arc(tx + 120, ROAD_Y + 36, 8, 0, TAU); ctx.fill(); cut(ctx, '#ffe36a', tx + 78, ROAD_Y - 14, 24, 8, 2);
+    }
     if (cam.zoom > .3) for (const c of G.coins) if (!c.got && c.x > b.x0 && c.x < b.x1) { ctx.fillStyle = '#ffd95a'; ctx.beginPath(); ctx.ellipse(c.x, c.y - 4 + Math.sin(G.clock * 200 + c.x) * 2, 5, 6, 0, 0, TAU); ctx.fill(); glow(ctx, c.x, c.y - 4, 22, 'rgba(255,217,90,A)', .3); }
     const actors = G.crowd.visible(b); actors.push(G.player); if (G.cartMan.x > b.x0 - 100 && G.cartMan.x < b.x1 + 100) actors.push(G.cartMan);
     actors.sort((a, c) => a.y - c.y);
