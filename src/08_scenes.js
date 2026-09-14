@@ -53,6 +53,7 @@ const StreetScene = {
     if (c.isHome && cam.zoom > .12) G.drawCart(ctx, G.cartMan.x - 62, GROUND + 6, cam.zoom);
     for (const a of actors) a.draw(ctx, cam.zoom);
     c.crowd.drawBehind(ctx, pal, cam.zoom, b); c.crowd.drawFront(ctx, pal, cam.zoom, b);
+    Lights.draw(ctx, cam);
     cam.end(ctx);
   },
 };
