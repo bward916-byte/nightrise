@@ -362,10 +362,10 @@ const Sfx = {
   init() { if (this.ctx || typeof window === 'undefined' || !(window.AudioContext || window.webkitAudioContext)) return; this.ctx = new (window.AudioContext || window.webkitAudioContext)(); this.ok = true; },
   tone(f, dur, type, vol, slide) { if (!this.ok) return; try { const c = this.ctx, o = c.createOscillator(), g = c.createGain(); o.type = type || 'square'; o.frequency.setValueAtTime(f, c.currentTime); if (slide) o.frequency.linearRampToValueAtTime(slide, c.currentTime + dur); g.gain.setValueAtTime(vol || .04, c.currentTime); g.gain.exponentialRampToValueAtTime(.0001, c.currentTime + dur); o.connect(g); g.connect(c.destination); o.start(); o.stop(c.currentTime + dur); } catch (e) {} },
   honk(dist) { const v = clamp(.06 * (1 - dist / 1400), 0, .06); if (v > .003) { this.tone(310 + Math.random() * 60, .25 + Math.random() * .3, 'square', v); this.tone(415, .25, 'square', v * .6); } },
-  siren(dist, ph) { const v = clamp(.03 * (1 - dist / 2400), 0, .03); if (v > .002) this.tone(ph ? 660 : 520, .45, 'sawtooth', v, ph ? 520 : 660); },
+
 };
 class Car {
-  constructor(lane, x, seed) { const r = RNG(seed); this.lane = lane; this.honkT = r.range(2, 12); this.emergency = r.chance(.08) ? r.pick(['police', 'ambulance']) : null; this.bus = !this.emergency && r.chance(.1); if (this.bus) { this.kind = 'bus'; this.len = 210; this.col = '#3a6fa0'; } this.sirenT = 0; this.x = x; this.dir = lane === 0 ? -1 : 1; this.v = r.range(180, 300); this.col = r.pick(CAR_COL); if (!this.bus) { this.kind = this.emergency ? (this.emergency === 'police' ? 'sedan' : 'van') : r.weighted([['sedan', 5], ['suv', 3], ['taxi', 2], ['van', 1.5], ['truck', .7]]); if (this.kind === 'taxi') this.col = '#e8c22a'; if (this.emergency) this.col = this.emergency === 'police' ? '#1a1c28' : '#f2f2f2'; this.len = this.kind === 'truck' ? 150 : this.kind === 'van' ? 120 : 100; } }
+  constructor(lane, x, seed) { const r = RNG(seed); this.lane = lane; this.honkT = r.range(2, 12); this.emergency = r.chance(.025) ? r.pick(['police', 'ambulance']) : null; this.bus = !this.emergency && r.chance(.1); if (this.bus) { this.kind = 'bus'; this.len = 210; this.col = '#3a6fa0'; } this.sirenT = 0; this.x = x; this.dir = lane === 0 ? -1 : 1; this.v = r.range(180, 300); this.col = r.pick(CAR_COL); if (!this.bus) { this.kind = this.emergency ? (this.emergency === 'police' ? 'sedan' : 'van') : r.weighted([['sedan', 5], ['suv', 3], ['taxi', 2], ['van', 1.5], ['truck', .7]]); if (this.kind === 'taxi') this.col = '#e8c22a'; if (this.emergency) this.col = this.emergency === 'police' ? '#1a1c28' : '#f2f2f2'; this.len = this.kind === 'truck' ? 150 : this.kind === 'van' ? 120 : 100; } }
   get y() { return this.lane === 0 ? ROAD_Y + ROAD_H * .3 : ROAD_Y + ROAD_H * .78; }
   update(dt, x0, x1, city, cars) {
     const light = city ? lightFor(city.dir, typeof Game !== 'undefined' ? Game.clock : 0) : 'green';
@@ -379,8 +379,8 @@ class Car {
     const G_ = typeof Game !== 'undefined' ? Game : null;
     if (G_ && G_.player && G_.scene && G_.scene.name === 'street') {
       const d = Math.abs(this.x - G_.player.x);
-      if (this.braking && light === 'green' && !this.emergency) { this.honkT -= dt; if (this.honkT <= 0) { this.honkT = 3 + Math.random() * 9; this.honk = .6; Sfx.honk(d); } } else if (Math.random() < dt * .02 && d < 900 && !this.emergency) { this.honk = .5; Sfx.honk(d); }
-      if (this.emergency) { this.sirenT += dt; if (this.sirenT > .5) { this.sirenT = 0; this.sirenPh = !this.sirenPh; Sfx.siren(d, this.sirenPh); } target = this.v * 1.4; }
+      if (this.braking && light === 'green' && !this.emergency) { this.honkT -= dt; if (this.honkT <= 0) { this.honkT = 8 + Math.random() * 16; this.honk = .6; Sfx.honk(d); } } else if (Math.random() < dt * .006 && d < 700 && !this.emergency) { this.honk = .5; Sfx.honk(d); }
+      if (this.emergency) target = this.v * 1.35;
     }
     if (this.honk > 0) this.honk -= dt;
   }
