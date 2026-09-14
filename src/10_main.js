@@ -24,7 +24,7 @@ const Game = {
   },
   frame(t) { const dt = Math.min(.05, (t - this.last) / 1000); this.last = t; this.update(dt); this.draw(); requestAnimationFrame(t => this.frame(t)); },
   // ---- streets
-  setStreet(st) { this.city = st; if (!st.crowd) st.crowd = new Crowd(st, 240); if (!st.coins) { const r = RNG(st.id.length * 91 + st.i * 7 + (st.dir === 'ns' ? 3 : 0)); st.coins = []; for (let i = 0; i < 9; i++) st.coins.push({ x: r.range(st.x0, st.x1), y: GROUND + r.range(8, WALK_DEPTH), v: r.pick([1, 1, 2, 5]), got: false }); } },
+  setStreet(st) { this.city = st; if (!st.crowd) st.crowd = new Crowd(st, 180); if (!st.coins) { const r = RNG(st.id.length * 91 + st.i * 7 + (st.dir === 'ns' ? 3 : 0)); st.coins = []; for (let i = 0; i < 9; i++) st.coins.push({ x: r.range(st.x0, st.x1), y: GROUND + r.range(8, WALK_DEPTH), v: r.pick([1, 1, 2, 5]), got: false }); } },
   // night runs 8pm -> 5am over about 14 real minutes; the streets empty out after midnight and fill again toward dawn
   hour() { return 20 + ((this.clock * 50 / 840) % 1) * 9; },
   density() { const h = this.hour(); const late = smoothstep(23.5, 25.5, h) * (1 - smoothstep(27.5, 29, h)); const wave = .85 + .15 * Math.sin(this.clock * 50 * .05); return clamp(wave * (1 - late * .82), .12, 1); },
