@@ -131,12 +131,13 @@ class Actor {
   }
   draw(ctx, zoom) {
     const s = this.spec;
+    if (typeof Lights !== 'undefined') Lights.groundShadow(ctx, this.x, this.y, this.h, this.h * .38);
     ctx.save(); ctx.translate(this.x, this.y); ctx.scale(this.facing, 1);
-    // pool of lamp light under the feet
-    ctx.save(); ctx.globalAlpha = .22; ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(2, 1, this.h * .17, this.h * .035, 0, 0, TAU); ctx.fill(); ctx.restore();
     if (zoom < 0.16) { this.drawLOD(ctx); ctx.restore(); return; }
     if (!PAPER_SHADOW && zoom > .3) { PAPER_SHADOW = true; ctx.save(); ctx.translate(this.h * .025 * this.facing, this.h * .03); ctx.globalAlpha = .55; this.drawBody(ctx); ctx.restore(); PAPER_SHADOW = false; }
     this.drawBody(ctx);
+    // ambient dim + warm rim from the nearest light
+    if (typeof Lights !== 'undefined') { const li = Lights.at(this.x, this.y); ctx.save(); ctx.globalCompositeOperation = 'source-atop'; ctx.fillStyle = `rgba(10,14,34,${clamp(.34 - li * .32, 0, .34)})`; ctx.fillRect(-this.h, -this.h * 1.2, this.h * 2, this.h * 1.4); if (li > .08) { ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(255,214,150,${li * .12})`; ctx.fillRect(-this.h, -this.h * 1.2, this.h * 2, this.h * 1.4); } ctx.restore(); }
     ctx.restore();
     if (this.speech) this.drawSpeech(ctx, zoom);
   }
