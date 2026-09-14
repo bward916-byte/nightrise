@@ -64,6 +64,43 @@ function buildCity() { return City.home(); }
 // traffic light phase: 0..1 over a 24s cycle. ew green [0,.4), yellow [.4,.5), ns green [.5,.9), yellow [.9,1)
 function lightPhase(clock) { return ((clock * 50) % 24) / 24; }
 function lightFor(dir, clock) { const p = lightPhase(clock); if (dir === 'ew') return p < .4 ? 'green' : p < .5 ? 'yellow' : 'red'; return p < .5 ? 'red' : p < .9 ? 'green' : 'yellow'; }
+// ---------- lighting ----------
+// Scene is drawn dim, then a light buffer is composited additively. Every lamp,
+// shop window, neon sign, headlight and lit apartment registers a light each frame.
+const Lights = {
+  list: [], shadowCasters: [],
+  clear() { this.list.length = 0; this.shadowCasters.length = 0; },
+  add(x, y, r, col, i) { if (this.list.length < 420) this.list.push({ x, y, r, col, i: i === undefined ? 1 : i }); },
+  // ground-level lights are what cast people's shadows
+  caster(x, y, r, i) { if (this.shadowCasters.length < 40) this.shadowCasters.push({ x, y, r, i: i || 1 }); },
+  draw(ctx, cam) {
+    if (!this.list.length) return;
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    for (const L of this.list) {
+      const g = ctx.createRadialGradient(L.x, L.y, 0, L.x, L.y, L.r);
+      g.addColorStop(0, `rgba(${L.col},${.30 * L.i})`); g.addColorStop(.25, `rgba(${L.col},${.085 * L.i})`); g.addColorStop(.6, `rgba(${L.col},${.018 * L.i})`); g.addColorStop(1, `rgba(${L.col},0)`);
+      ctx.fillStyle = g; ctx.fillRect(L.x - L.r, L.y - L.r, L.r * 2, L.r * 2);
+    }
+    ctx.restore();
+  },
+  // long soft shadow stretching away from the nearest strong light
+  groundShadow(ctx, x, y, h, w) {
+    let best = null, bi = 0;
+    for (const L of this.shadowCasters) { const d = Math.hypot(L.x - x, (L.y - y) * .5); if (d > L.r) continue; const i = L.i * (1 - d / L.r); if (i > bi) { bi = i; best = L; } }
+    ctx.save();
+    if (best) {
+      const dx = x - best.x, dist = Math.abs(dx) + 20, len = clamp(h * (60 / dist) * .8, h * .25, h * 2.4), dir = sgn(dx || 1);
+      ctx.globalAlpha = clamp(bi * .5, 0, .42); ctx.fillStyle = '#05060f';
+      ctx.beginPath(); ctx.moveTo(x - w * .35, y); ctx.lineTo(x + w * .35, y); ctx.lineTo(x + dir * len + w * .18, y + h * .075); ctx.lineTo(x + dir * len - w * .18, y + h * .075); ctx.closePath(); ctx.fill();
+    }
+    ctx.globalAlpha = .3; ctx.fillStyle = '#05060f'; ctx.beginPath(); ctx.ellipse(x, y + 1, w * .45, h * .028, 0, 0, TAU); ctx.fill();
+    ctx.restore();
+  },
+  // how lit a point is, 0..1 — used to tint people who walk under a lamp
+  at(x, y) { let v = 0; for (const L of this.shadowCasters) { const d = Math.hypot(L.x - x, (L.y - y) * .6); if (d < L.r) v += L.i * (1 - d / L.r); } return clamp(v, 0, 1); },
+};
+const LC = { warm: '255,214,150', lamp: '255,226,170', neonPink: '255,79,184', neonCyan: '51,233,255', head: '255,246,200', tail: '255,60,48', sign: '255,211,106', cool: '150,190,255' };
+
 // ---------- drawing ----------
 function drawSky(ctx, pal, cam) {
   const g = ctx.createLinearGradient(0, 0, 0, cam.h);
@@ -173,6 +210,7 @@ function drawBuilding(ctx, b, pal, zoom, isPlayerFloor) {
         else if (dim) { ctx.fillStyle = lit; ctx.globalAlpha = .18; }
         else { ctx.fillStyle = win; ctx.globalAlpha = 1; }
         ctx.fillRect(x, y, wW, wH); ctx.globalAlpha = 1;
+        if (on && detail > 9 && hash2(c * 3, f * 5 + b.id) < .16) Lights.add(x + wW / 2, y + wH / 2, 70, LC.warm, .22);
         if (on && detail > 9) drawRoom(ctx, x, y, wW, wH, hash2(f * 31 + c * 7, b.id + 11), hash2(c * 5 + 1, f * 3 + b.id), t, hash2(f + b.id, c * 13 + 5));
         // mullions and sills
         if (detail > 7) { ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(x + wW * .5 - .5, y, 1, wH); if (st !== 'glass') ctx.fillRect(x, y + wH * .5 - .5, wW, 1); if (st === 'glass') { ctx.fillRect(x + wW * .25 - .5, y, 1, wH); ctx.fillRect(x + wW * .75 - .5, y, 1, wH); } }
@@ -219,7 +257,7 @@ function drawGroundFloor(ctx, b, pal, zoom, base, win) {
     const dx = b.x + b.w / 2 - 44; ctx.fillStyle = '#fff2cc'; ctx.fillRect(dx, -FLOOR_H * .95, 88, FLOOR_H * .95); ctx.fillStyle = '#2b3550'; ctx.fillRect(dx + 42, -FLOOR_H * .95, 4, FLOOR_H * .95);
     ctx.fillStyle = '#10142a'; ctx.fillRect(b.x + b.w / 2 - 120, -gh - 8, 240, 14);
     ctx.fillStyle = '#ffe6a8'; ctx.font = `bold 15px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(b.name.toUpperCase(), b.x + b.w / 2, -gh - 1);
-    ctx.fillStyle = 'rgba(255,230,180,.12)'; ctx.beginPath(); ctx.moveTo(dx - 20, 0); ctx.lineTo(dx + 108, 0); ctx.lineTo(dx + 160, 60); ctx.lineTo(dx - 72, 60); ctx.fill();
+    ctx.fillStyle = 'rgba(255,230,180,.1)'; ctx.beginPath(); ctx.moveTo(dx - 20, 0); ctx.lineTo(dx + 108, 0); ctx.lineTo(dx + 160, 64); ctx.lineTo(dx - 72, 64); ctx.fill(); Lights.add(b.x + b.w / 2, -gh * .6, 260, LC.warm, .7); Lights.caster(b.x + b.w / 2, 16, 240, .7);
     b.door = { x: dx, w: 88 };
   } else {
     const n = Math.max(1, Math.round(b.w / 200)), sw = b.w / n;
@@ -232,7 +270,8 @@ function drawGroundFloor(ctx, b, pal, zoom, base, win) {
       ctx.font = `bold 13px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       const flick = hash2(i, b.id + 1) < .15 && Math.sin((typeof Game !== 'undefined' ? Game.clock : 0) * 700 + i) > .9;
       if (!flick) { ctx.shadowColor = neon; ctx.shadowBlur = zoom > .5 ? 12 : 0; ctx.fillStyle = neon; ctx.fillText(name, x + sw * .42, -gh + 22); ctx.shadowBlur = 0; ctx.globalAlpha = .12; ctx.fillRect(x + 6, -gh + 8, sw * .72, 30); ctx.globalAlpha = 1; }
-      if (open) { ctx.fillStyle = 'rgba(255,220,160,.1)'; ctx.beginPath(); ctx.moveTo(x + 14, 0); ctx.lineTo(x + 14 + sw * .55, 0); ctx.lineTo(x + 14 + sw * .55 + 40, 50); ctx.lineTo(x - 26, 50); ctx.fill(); }
+      if (open) { ctx.fillStyle = 'rgba(255,220,160,.09)'; ctx.beginPath(); ctx.moveTo(x + 14, 0); ctx.lineTo(x + 14 + sw * .55, 0); ctx.lineTo(x + 14 + sw * .55 + 40, 54); ctx.lineTo(x - 26, 54); ctx.fill(); Lights.add(x + 14 + sw * .28, -gh * .5, 150, LC.warm, .6); Lights.caster(x + 14 + sw * .28, 14, 150, .6); }
+      if (!flick) Lights.add(x + sw * .42, -gh + 22, 105, neon === '#33e9ff' ? LC.neonCyan : neon === '#ff4fb8' ? LC.neonPink : LC.sign, .5);
     }
   }
 }
@@ -300,7 +339,7 @@ function drawIntersection(ctx, city, it, zoom, pal) {
   ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(x - 40, GROUND, 80, WALK_DEPTH + 6);
   if (zoom > .18) {
     const ew = lightFor(city.dir, t), ped = ew === 'green' ? 'stop' : 'walk';
-    const light = (lx, ly, state, facing) => { ctx.fillStyle = '#12141f'; ctx.fillRect(lx - 3, ly, 6, ROAD_Y - ly - 4); ctx.fillRect(lx - 3, ly, facing * 40, 5); ctx.fillStyle = '#1a1c24'; ctx.fillRect(lx + facing * 34 - 7, ly - 2, 14, 36); ['red', 'yellow', 'green'].forEach((c, i) => { ctx.fillStyle = c === state ? { red: '#ff3b30', yellow: '#ffcc33', green: '#3fdc6a' }[c] : '#2a2c34'; ctx.beginPath(); ctx.arc(lx + facing * 34, ly + 5 + i * 11, 4, 0, TAU); ctx.fill(); if (c === state) glow(ctx, lx + facing * 34, ly + 5 + i * 11, 22, c === 'red' ? 'rgba(255,60,50,A)' : c === 'yellow' ? 'rgba(255,204,51,A)' : 'rgba(63,220,106,A)', .35); }); };
+    const light = (lx, ly, state, facing) => { ctx.fillStyle = '#12141f'; ctx.fillRect(lx - 3, ly, 6, ROAD_Y - ly - 4); ctx.fillRect(lx - 3, ly, facing * 40, 5); ctx.fillStyle = '#1a1c24'; ctx.fillRect(lx + facing * 34 - 7, ly - 2, 14, 36); ['red', 'yellow', 'green'].forEach((c, i) => { ctx.fillStyle = c === state ? { red: '#ff3b30', yellow: '#ffcc33', green: '#3fdc6a' }[c] : '#2a2c34'; ctx.beginPath(); ctx.arc(lx + facing * 34, ly + 5 + i * 11, 4, 0, TAU); ctx.fill(); if (c === state) Lights.add(lx + facing * 34, ly + 5 + i * 11, 70, c === 'red' ? '255,60,50' : c === 'yellow' ? '255,204,51' : '63,220,106', .55); }); };
     light(x - half - 30, -150, ew, 1); light(x + half + 30, -150, ew, -1);
     // pedestrian signal + corner street signs
     for (const side of [-1, 1]) { const px = x + side * (half + 30); ctx.fillStyle = '#1a1c24'; ctx.fillRect(px - 8, -96, 16, 22); ctx.fillStyle = ped === 'walk' ? '#e8f0ff' : '#ff6a3a'; if (ped === 'walk') { ctx.fillRect(px - 2, -92, 4, 6); ctx.fillRect(px - 4, -86, 8, 8); } else { ctx.fillRect(px - 5, -90, 10, 10); }
@@ -368,6 +407,7 @@ class Car {
     ctx.fillStyle = '#0a0c14'; for (const wx of [-L * .3, L * .3]) { ctx.beginPath(); ctx.arc(wx, 0, 11, 0, TAU); ctx.fill(); ctx.fillStyle = '#5a5e70'; ctx.beginPath(); ctx.arc(wx, 0, 5, 0, TAU); ctx.fill(); ctx.fillStyle = '#0a0c14'; }
     // lights
     ctx.fillStyle = '#fff6c0'; ctx.fillRect(L / 2 - 6, -16, 6, 5); ctx.fillStyle = '#ff3b30'; ctx.fillRect(-L / 2, -16, 6, 5); if (this.braking) glow(ctx, -L / 2 + 2, -14, 26, 'rgba(255,60,48,A)', .5);
+    Lights.add(this.x + this.dir * (L / 2 + 40), this.y - 14, 130, LC.head, .55); Lights.add(this.x - this.dir * (L / 2), this.y - 12, 55, LC.tail, .35); if (this.lane === 1) Lights.caster(this.x + this.dir * 70, this.y - 6, 130, .35);
     { ctx.globalAlpha = .18; ctx.fillStyle = '#fff6c0'; ctx.beginPath(); ctx.moveTo(L / 2, -16); ctx.lineTo(L / 2 + 120, -30); ctx.lineTo(L / 2 + 120, 6); ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1; }
     ctx.restore();
   }
