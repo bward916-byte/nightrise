@@ -6,7 +6,7 @@ class Crowd {
     for (let i = 0; i < (count || 240); i++) {
       const a = new Actor(genCharacter(1000 + i));
       a.x = r.range(x0, x1); a.y = GROUND + r.range(6, WALK_DEPTH); a.facing = r.chance(.5) ? 1 : -1; a.dir = a.facing;
-      a.wait = r.range(0, 3); a.spec.walkSpeed *= 1.9; this.npcs.push(a);
+      a.wait = r.range(0, 3); a.spec.walkSpeed *= 1.35; this.npcs.push(a);
     }
     for (let i = 0; i < 26; i++) this.cars.push(new Car(i % 2, r.range(x0, x1), 500 + i));
   }
