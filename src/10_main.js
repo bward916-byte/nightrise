@@ -24,7 +24,11 @@ const Game = {
   },
   frame(t) { const dt = Math.min(.05, (t - this.last) / 1000); this.last = t; this.update(dt); this.draw(); requestAnimationFrame(t => this.frame(t)); },
   // ---- streets
-  setStreet(st) { this.city = st; if (!st.crowd) st.crowd = new Crowd(st, 240); if (!st.coins) { const r = RNG(st.id.length * 91 + st.i * 7 + (st.dir === 'ns' ? 3 : 0)); st.coins = []; for (let i = 0; i < 60; i++) st.coins.push({ x: r.range(st.x0, st.x1), y: GROUND + r.range(8, WALK_DEPTH), v: r.pick([1, 2, 2, 5, 5, 10]), got: false }); } },
+  setStreet(st) { this.city = st; if (!st.crowd) st.crowd = new Crowd(st, 240); if (!st.coins) { const r = RNG(st.id.length * 91 + st.i * 7 + (st.dir === 'ns' ? 3 : 0)); st.coins = []; for (let i = 0; i < 9; i++) st.coins.push({ x: r.range(st.x0, st.x1), y: GROUND + r.range(8, WALK_DEPTH), v: r.pick([1, 1, 2, 5]), got: false }); } },
+  // night runs 8pm -> 5am over about 14 real minutes; the streets empty out after midnight and fill again toward dawn
+  hour() { return 20 + ((this.clock * 50 / 840) % 1) * 9; },
+  density() { const h = this.hour(); const late = smoothstep(23.5, 25.5, h) * (1 - smoothstep(27.5, 29, h)); const wave = .85 + .15 * Math.sin(this.clock * 50 * .05); return clamp(wave * (1 - late * .82), .12, 1); },
+  homeHint() { const c = this.city; if (!c) return null; if (c.isHome) { const d = TOWER.x + TOWER.w / 2 - this.player.x; return Math.abs(d) < 80 ? 'Home' : (d > 0 ? '→ ' : '← ') + Math.max(1, Math.round(Math.abs(d) / BLOCK * 10) / 10) + ' blocks'; } if (c.dir === 'ns') { const k = c.inters.find(i => i.cross.i === HOME.i); const d = k.x - this.player.x; return Math.abs(d) < 60 ? 'Cross here' : (d > 0 ? '→ ' : '← ') + 'Main St'; } return 'Cross to an avenue'; },
   makeCanvas(w, h) { if (typeof document !== 'undefined') { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; } return null; },
   cross(it) {
     if (this.turn) return;
@@ -50,7 +54,7 @@ const Game = {
   openElevator(from) { this.elevatorFrom = from; this.go('elevator', from); },
   elevatorFloorLabel() { return this.scene === ElevatorScene ? '' : this.floor === 0 ? 'L' : this.floor === 99 ? 'R' : String(this.floor); },
   update(dt) {
-    Input.update(); UI.update(dt); this.clock += dt / 50;
+    Input.update(); UI.update(dt); this.clock += dt / 50; if (!Sfx.ok && (Input.tap || Object.values(Input.pressed).some(Boolean))) Sfx.init();
     const p = this.player;
     if (!this.scene.noZoom && !Camera.seq) {
       if (Input.wheel) Camera.zoomBy(Math.pow(1.0018, -Input.wheel));
