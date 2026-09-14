@@ -39,7 +39,7 @@ const SHADOW = 'rgba(6,8,20,.45)';
 let PAPER_SHADOW = false;
 
 // ---- always night. One fixed palette, tuned so lit windows carry the scene.
-const NIGHT = { skyTop: '#070a18', skyBot: '#1b2446', tint: '#22284a', tintK: .35, glow: .62, night: 1, hour: 22 };
+const NIGHT = { skyTop: '#070a18', skyBot: '#1b2446', tint: '#22284a', tintK: .35, glow: .19, night: 1, hour: 22 };
 function dayPalette() { return NIGHT; }
 
 // ---- tiny event bus
