@@ -1,5 +1,8 @@
 // ===== rig: skeleton, postures, inked renderer =====
 const FACE = '#2a2230';
+// how lit the figure currently being drawn is (0 = deep shadow, 1 = under a lamp)
+let LIT = 1;
+function litCol(c) { if (LIT >= .98 || PAPER_SHADOW) return c; const k = clamp(LIT, 0, 1); return mix(mix(c, '#0b1130', (1 - k) * .42), '#ffd696', k * .10); }
 const FONT = '"Comic Neue","Comic Sans MS","Chalkboard SE","Segoe Print",sans-serif';
 // A pose is a bag of joint angles (radians). F = front (near) limb, B = back limb.
 // Legs: hip angle from straight-down, +forward. knee = fold backward.
@@ -54,9 +57,9 @@ function inkW(zoom) { INKW = Math.max(1.3, 0.9 / zoom); }
 // paper cutout: flat fills, no outlines. A second pass draws the whole figure offset in shadow colour.
 function limb(ctx, x0, y0, x1, y1, w, col) {
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  ctx.strokeStyle = PAPER_SHADOW ? SHADOW : col; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+  ctx.strokeStyle = PAPER_SHADOW ? SHADOW : litCol(col); ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
 }
-function inkFill(ctx, col) { ctx.fillStyle = PAPER_SHADOW ? SHADOW : col; ctx.fill(); }
+function inkFill(ctx, col) { ctx.fillStyle = PAPER_SHADOW ? SHADOW : litCol(col); ctx.fill(); }
 function hatch() {}
 
 // ---------- Actor ----------
@@ -135,9 +138,9 @@ class Actor {
     ctx.save(); ctx.translate(this.x, this.y); ctx.scale(this.facing, 1);
     if (zoom < 0.16) { this.drawLOD(ctx); ctx.restore(); return; }
     if (!PAPER_SHADOW && zoom > .3) { PAPER_SHADOW = true; ctx.save(); ctx.translate(this.h * .025 * this.facing, this.h * .03); ctx.globalAlpha = .55; this.drawBody(ctx); ctx.restore(); PAPER_SHADOW = false; }
+    LIT = typeof Lights !== 'undefined' ? Lights.at(this.x, this.y) : 1;
     this.drawBody(ctx);
-    // ambient dim + warm rim from the nearest light
-    if (typeof Lights !== 'undefined') { const li = Lights.at(this.x, this.y); ctx.save(); ctx.globalCompositeOperation = 'source-atop'; ctx.fillStyle = `rgba(10,14,34,${clamp(.34 - li * .32, 0, .34)})`; ctx.fillRect(-this.h, -this.h * 1.2, this.h * 2, this.h * 1.4); if (li > .08) { ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(255,214,150,${li * .12})`; ctx.fillRect(-this.h, -this.h * 1.2, this.h * 2, this.h * 1.4); } ctx.restore(); }
+    LIT = 1;
     ctx.restore();
     if (this.speech) this.drawSpeech(ctx, zoom);
   }
@@ -229,28 +232,28 @@ class Actor {
     ctx.strokeStyle = PAPER_SHADOW ? SHADOW : FACE; ctx.lineWidth = INKW * .8;
     if (t === 'suit' || t === 'blazer') {
       ctx.beginPath(); ctx.moveTo(sw * .55, -T * .9); ctx.lineTo(sw * .15, -T * .45); ctx.lineTo(sw * .2, -T * .05); ctx.stroke();
-      ctx.fillStyle = s.top.color2; ctx.beginPath(); ctx.moveTo(sw * .55, -T * .92); ctx.lineTo(sw * .18, -T * .5); ctx.lineTo(sw * .58, -T * .55); ctx.closePath(); ctx.fill(); ctx.stroke();
-      if (s.tie) { ctx.fillStyle = s.tie; ctx.beginPath(); ctx.moveTo(sw * .5, -T * .85); ctx.lineTo(sw * .42, -T * .35); ctx.lineTo(sw * .58, -T * .3); ctx.lineTo(sw * .62, -T * .8); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+      ctx.fillStyle = litCol(s.top.color2); ctx.beginPath(); ctx.moveTo(sw * .55, -T * .92); ctx.lineTo(sw * .18, -T * .5); ctx.lineTo(sw * .58, -T * .55); ctx.closePath(); ctx.fill(); ctx.stroke();
+      if (s.tie) { ctx.fillStyle = litCol(s.tie); ctx.beginPath(); ctx.moveTo(sw * .5, -T * .85); ctx.lineTo(sw * .42, -T * .35); ctx.lineTo(sw * .58, -T * .3); ctx.lineTo(sw * .62, -T * .8); ctx.closePath(); ctx.fill(); ctx.stroke(); }
     } else if (t === 'shirt' || t === 'blouse') {
       ctx.beginPath(); ctx.moveTo(sw * .5, -T * .88); ctx.lineTo(sw * .5, -T * .05); ctx.stroke();
       ctx.fillStyle = PAPER_SHADOW ? SHADOW : FACE; for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.arc(sw * .5, -T * (.7 - i * .18), INKW * .8, 0, TAU); ctx.fill(); }
-      if (s.tie) { ctx.fillStyle = s.tie; ctx.beginPath(); ctx.moveTo(sw * .48, -T * .85); ctx.lineTo(sw * .4, -T * .4); ctx.lineTo(sw * .56, -T * .35); ctx.lineTo(sw * .6, -T * .8); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+      if (s.tie) { ctx.fillStyle = litCol(s.tie); ctx.beginPath(); ctx.moveTo(sw * .48, -T * .85); ctx.lineTo(sw * .4, -T * .4); ctx.lineTo(sw * .56, -T * .35); ctx.lineTo(sw * .6, -T * .8); ctx.closePath(); ctx.fill(); ctx.stroke(); }
     } else if (t === 'hoodie') {
       ctx.beginPath(); ctx.moveTo(-sw * .3, -T * .98); ctx.quadraticCurveTo(-sw * 1.2, -T * 1.1, -sw * .9, -T * .6); ctx.quadraticCurveTo(-sw * .4, -T * .7, -sw * .3, -T * .98); inkFill(ctx, shade(s.top.color, .85));
       ctx.beginPath(); ctx.moveTo(sw * .25, -T * .85); ctx.lineTo(sw * .3, -T * .45); ctx.stroke(); ctx.beginPath(); ctx.rect(-hw * .8, -T * .3, hw * 1.6, T * .18); ctx.stroke();
     } else if (t === 'vest') {
-      ctx.fillStyle = s.top.color2; ctx.beginPath(); ctx.rect(-hw * .9, -T * .35, hw * 1.8, T * .12); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = litCol(s.top.color2); ctx.beginPath(); ctx.rect(-hw * .9, -T * .35, hw * 1.8, T * .12); ctx.fill(); ctx.stroke();
     } else if (t === 'tracksuit' || t === 'jacket') {
       ctx.beginPath(); ctx.moveTo(sw * .3, -T * .9); ctx.lineTo(sw * .3, -T * .05); ctx.stroke();
       if (t === 'tracksuit') { ctx.strokeStyle = s.top.color2; ctx.lineWidth = INKW * 1.5; ctx.beginPath(); ctx.moveTo(-sw * .9, -T * .85); ctx.lineTo(-hw, 0); ctx.stroke(); }
     } else if (t === 'tank') {
-      ctx.strokeStyle = s.skin; ctx.lineWidth = INKW * 2.2; ctx.beginPath(); ctx.moveTo(sw * .75, -T * .95); ctx.lineTo(sw * .95, -T * .55); ctx.stroke();
+      ctx.strokeStyle = litCol(s.skin); ctx.lineWidth = INKW * 2.2; ctx.beginPath(); ctx.moveTo(sw * .75, -T * .95); ctx.lineTo(sw * .95, -T * .55); ctx.stroke();
     } else if (t === 'rags') {
       ctx.beginPath(); ctx.moveTo(-hw, T * .05); ctx.lineTo(-hw * .6, T * .25); ctx.lineTo(-hw * .2, T * .02); ctx.lineTo(hw * .3, T * .3); ctx.lineTo(hw, T * .05); inkFill(ctx, s.top.color);
       hatch(ctx, -hw, -T * .5, hw * 1.5, T * .4, 5, .2, .3);
     } else if (dressy) {
-      ctx.fillStyle = s.top.color2; ctx.beginPath(); ctx.moveTo(-hw, -T * .1); ctx.lineTo(hw, -T * .1); ctx.lineTo(hw, -T * .02); ctx.lineTo(-hw, -T * .02); ctx.fill();
-      if (t === 'gown') { ctx.strokeStyle = s.skin; ctx.lineWidth = INKW * 3; ctx.beginPath(); ctx.moveTo(-sw * .2, -T * 1.0); ctx.lineTo(sw * .4, -T * .95); ctx.stroke(); }
+      ctx.fillStyle = litCol(s.top.color2); ctx.beginPath(); ctx.moveTo(-hw, -T * .1); ctx.lineTo(hw, -T * .1); ctx.lineTo(hw, -T * .02); ctx.lineTo(-hw, -T * .02); ctx.fill();
+      if (t === 'gown') { ctx.strokeStyle = litCol(s.skin); ctx.lineWidth = INKW * 3; ctx.beginPath(); ctx.moveTo(-sw * .2, -T * 1.0); ctx.lineTo(sw * .4, -T * .95); ctx.stroke(); }
     } else if (t === 'sweater') { hatch(ctx, -hw * .8, -T * .3, hw * 1.6, T * .25, 3, 0, .2); }
     // belt
     if (!dressy && !skirtBottom && (s.bottom.type === 'slacks' || s.bottom.type === 'chinos' || s.bottom.type === 'jeans')) { ctx.strokeStyle = PAPER_SHADOW ? SHADOW : FACE; ctx.lineWidth = INKW * .9; ctx.beginPath(); ctx.moveTo(-hw, T * .02); ctx.lineTo(hw, T * .02); ctx.stroke(); }
@@ -302,7 +305,7 @@ class Actor {
     ctx.fillStyle = PAPER_SHADOW ? SHADOW : FACE; ctx.strokeStyle = PAPER_SHADOW ? SHADOW : FACE; ctx.lineWidth = INKW;
     if (s.glasses === 'shades') { ctx.beginPath(); ctx.roundRect(ex - R * .35, ey - R * .22, R * .62, R * .36, 3); ctx.fill(); ctx.beginPath(); ctx.moveTo(ex - R * .35, ey - R * .1); ctx.lineTo(-R * .05, ey - R * .15); ctx.stroke(); }
     else {
-      if (open > .3) { ctx.beginPath(); ctx.ellipse(ex, ey, R * .13, R * .16 * open, 0, 0, TAU); ctx.fill(); if (!PAPER_SHADOW) { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(ex + R * .04, ey - R * .05, R * .04, 0, TAU); ctx.fill(); } ctx.fillStyle = PAPER_SHADOW ? SHADOW : FACE; }
+      if (open > .3) { ctx.beginPath(); ctx.ellipse(ex, ey, R * .13, R * .16 * open, 0, 0, TAU); ctx.fill(); if (!PAPER_SHADOW) { ctx.fillStyle = litCol('#ffffff'); ctx.beginPath(); ctx.arc(ex + R * .04, ey - R * .05, R * .04, 0, TAU); ctx.fill(); } ctx.fillStyle = PAPER_SHADOW ? SHADOW : FACE; }
       else { ctx.beginPath(); ctx.moveTo(ex - R * .15, ey); ctx.lineTo(ex + R * .15, ey); ctx.stroke(); }
       if (s.glasses !== 'none') { ctx.lineWidth = INKW * .9; ctx.beginPath(); if (s.glasses === 'round') ctx.arc(ex, ey, R * .3, 0, TAU); else ctx.rect(ex - R * .3, ey - R * .25, R * .6, R * .48); ctx.stroke(); ctx.beginPath(); ctx.moveTo(ex - R * .3, ey - R * .05); ctx.lineTo(-R * .05, ey - R * .12); ctx.stroke(); }
     }
