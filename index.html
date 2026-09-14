@@ -363,6 +363,9 @@ function genCartMan() {
 // ---- 04_rig.js
 // ===== rig: skeleton, postures, inked renderer =====
 const FACE = '#2a2230';
+// how lit the figure currently being drawn is (0 = deep shadow, 1 = under a lamp)
+let LIT = 1;
+function litCol(c) { if (LIT >= .98 || PAPER_SHADOW) return c; const k = clamp(LIT, 0, 1); return mix(mix(c, '#0b1130', (1 - k) * .42), '#ffd696', k * .10); }
 const FONT = '"Comic Neue","Comic Sans MS","Chalkboard SE","Segoe Print",sans-serif';
 // A pose is a bag of joint angles (radians). F = front (near) limb, B = back limb.
 // Legs: hip angle from straight-down, +forward. knee = fold backward.
@@ -417,9 +420,9 @@ function inkW(zoom) { INKW = Math.max(1.3, 0.9 / zoom); }
 // paper cutout: flat fills, no outlines. A second pass draws the whole figure offset in shadow colour.
 function limb(ctx, x0, y0, x1, y1, w, col) {
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  ctx.strokeStyle = PAPER_SHADOW ? SHADOW : col; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+  ctx.strokeStyle = PAPER_SHADOW ? SHADOW : litCol(col); ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
 }
-function inkFill(ctx, col) { ctx.fillStyle = PAPER_SHADOW ? SHADOW : col; ctx.fill(); }
+function inkFill(ctx, col) { ctx.fillStyle = PAPER_SHADOW ? SHADOW : litCol(col); ctx.fill(); }
 function hatch() {}
 
 // ---------- Actor ----------
@@ -498,9 +501,9 @@ class Actor {
     ctx.save(); ctx.translate(this.x, this.y); ctx.scale(this.facing, 1);
     if (zoom < 0.16) { this.drawLOD(ctx); ctx.restore(); return; }
     if (!PAPER_SHADOW && zoom > .3) { PAPER_SHADOW = true; ctx.save(); ctx.translate(this.h * .025 * this.facing, this.h * .03); ctx.globalAlpha = .55; this.drawBody(ctx); ctx.restore(); PAPER_SHADOW = false; }
+    LIT = typeof Lights !== 'undefined' ? Lights.at(this.x, this.y) : 1;
     this.drawBody(ctx);
-    // ambient dim + warm rim from the nearest light
-    if (typeof Lights !== 'undefined') { const li = Lights.at(this.x, this.y); ctx.save(); ctx.globalCompositeOperation = 'source-atop'; ctx.fillStyle = `rgba(10,14,34,${clamp(.34 - li * .32, 0, .34)})`; ctx.fillRect(-this.h, -this.h * 1.2, this.h * 2, this.h * 1.4); if (li > .08) { ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(255,214,150,${li * .12})`; ctx.fillRect(-this.h, -this.h * 1.2, this.h * 2, this.h * 1.4); } ctx.restore(); }
+    LIT = 1;
     ctx.restore();
     if (this.speech) this.drawSpeech(ctx, zoom);
   }
@@ -592,28 +595,28 @@ class Actor {
     ctx.strokeStyle = PAPER_SHADOW ? SHADOW : FACE; ctx.lineWidth = INKW * .8;
     if (t === 'suit' || t === 'blazer') {
       ctx.beginPath(); ctx.moveTo(sw * .55, -T * .9); ctx.lineTo(sw * .15, -T * .45); ctx.lineTo(sw * .2, -T * .05); ctx.stroke();
-      ctx.fillStyle = s.top.color2; ctx.beginPath(); ctx.moveTo(sw * .55, -T * .92); ctx.lineTo(sw * .18, -T * .5); ctx.lineTo(sw * .58, -T * .55); ctx.closePath(); ctx.fill(); ctx.stroke();
-      if (s.tie) { ctx.fillStyle = s.tie; ctx.beginPath(); ctx.moveTo(sw * .5, -T * .85); ctx.lineTo(sw * .42, -T * .35); ctx.lineTo(sw * .58, -T * .3); ctx.lineTo(sw * .62, -T * .8); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+      ctx.fillStyle = litCol(s.top.color2); ctx.beginPath(); ctx.moveTo(sw * .55, -T * .92); ctx.lineTo(sw * .18, -T * .5); ctx.lineTo(sw * .58, -T * .55); ctx.closePath(); ctx.fill(); ctx.stroke();
+      if (s.tie) { ctx.fillStyle = litCol(s.tie); ctx.beginPath(); ctx.moveTo(sw * .5, -T * .85); ctx.lineTo(sw * .42, -T * .35); ctx.lineTo(sw * .58, -T * .3); ctx.lineTo(sw * .62, -T * .8); ctx.closePath(); ctx.fill(); ctx.stroke(); }
     } else if (t === 'shirt' || t === 'blouse') {
       ctx.beginPath(); ctx.moveTo(sw * .5, -T * .88); ctx.lineTo(sw * .5, -T * .05); ctx.stroke();
       ctx.fillStyle = PAPER_SHADOW ? SHADOW : FACE; for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.arc(sw * .5, -T * (.7 - i * .18), INKW * .8, 0, TAU); ctx.fill(); }
-      if (s.tie) { ctx.fillStyle = s.tie; ctx.beginPath(); ctx.moveTo(sw * .48, -T * .85); ctx.lineTo(sw * .4, -T * .4); ctx.lineTo(sw * .56, -T * .35); ctx.lineTo(sw * .6, -T * .8); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+      if (s.tie) { ctx.fillStyle = litCol(s.tie); ctx.beginPath(); ctx.moveTo(sw * .48, -T * .85); ctx.lineTo(sw * .4, -T * .4); ctx.lineTo(sw * .56, -T * .35); ctx.lineTo(sw * .6, -T * .8); ctx.closePath(); ctx.fill(); ctx.stroke(); }
     } else if (t === 'hoodie') {
       ctx.beginPath(); ctx.moveTo(-sw * .3, -T * .98); ctx.quadraticCurveTo(-sw * 1.2, -T * 1.1, -sw * .9, -T * .6); ctx.quadraticCurveTo(-sw * .4, -T * .7, -sw * .3, -T * .98); inkFill(ctx, shade(s.top.color, .85));
       ctx.beginPath(); ctx.moveTo(sw * .25, -T * .85); ctx.lineTo(sw * .3, -T * .45); ctx.stroke(); ctx.beginPath(); ctx.rect(-hw * .8, -T * .3, hw * 1.6, T * .18); ctx.stroke();
     } else if (t === 'vest') {
-      ctx.fillStyle = s.top.color2; ctx.beginPath(); ctx.rect(-hw * .9, -T * .35, hw * 1.8, T * .12); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = litCol(s.top.color2); ctx.beginPath(); ctx.rect(-hw * .9, -T * .35, hw * 1.8, T * .12); ctx.fill(); ctx.stroke();
     } else if (t === 'tracksuit' || t === 'jacket') {
       ctx.beginPath(); ctx.moveTo(sw * .3, -T * .9); ctx.lineTo(sw * .3, -T * .05); ctx.stroke();
       if (t === 'tracksuit') { ctx.strokeStyle = s.top.color2; ctx.lineWidth = INKW * 1.5; ctx.beginPath(); ctx.moveTo(-sw * .9, -T * .85); ctx.lineTo(-hw, 0); ctx.stroke(); }
     } else if (t === 'tank') {
-      ctx.strokeStyle = s.skin; ctx.lineWidth = INKW * 2.2; ctx.beginPath(); ctx.moveTo(sw * .75, -T * .95); ctx.lineTo(sw * .95, -T * .55); ctx.stroke();
+      ctx.strokeStyle = litCol(s.skin); ctx.lineWidth = INKW * 2.2; ctx.beginPath(); ctx.moveTo(sw * .75, -T * .95); ctx.lineTo(sw * .95, -T * .55); ctx.stroke();
     } else if (t === 'rags') {
       ctx.beginPath(); ctx.moveTo(-hw, T * .05); ctx.lineTo(-hw * .6, T * .25); ctx.lineTo(-hw * .2, T * .02); ctx.lineTo(hw * .3, T * .3); ctx.lineTo(hw, T * .05); inkFill(ctx, s.top.color);
       hatch(ctx, -hw, -T * .5, hw * 1.5, T * .4, 5, .2, .3);
     } else if (dressy) {
-      ctx.fillStyle = s.top.color2; ctx.beginPath(); ctx.moveTo(-hw, -T * .1); ctx.lineTo(hw, -T * .1); ctx.lineTo(hw, -T * .02); ctx.lineTo(-hw, -T * .02); ctx.fill();
-      if (t === 'gown') { ctx.strokeStyle = s.skin; ctx.lineWidth = INKW * 3; ctx.beginPath(); ctx.moveTo(-sw * .2, -T * 1.0); ctx.lineTo(sw * .4, -T * .95); ctx.stroke(); }
+      ctx.fillStyle = litCol(s.top.color2); ctx.beginPath(); ctx.moveTo(-hw, -T * .1); ctx.lineTo(hw, -T * .1); ctx.lineTo(hw, -T * .02); ctx.lineTo(-hw, -T * .02); ctx.fill();
+      if (t === 'gown') { ctx.strokeStyle = litCol(s.skin); ctx.lineWidth = INKW * 3; ctx.beginPath(); ctx.moveTo(-sw * .2, -T * 1.0); ctx.lineTo(sw * .4, -T * .95); ctx.stroke(); }
     } else if (t === 'sweater') { hatch(ctx, -hw * .8, -T * .3, hw * 1.6, T * .25, 3, 0, .2); }
     // belt
     if (!dressy && !skirtBottom && (s.bottom.type === 'slacks' || s.bottom.type === 'chinos' || s.bottom.type === 'jeans')) { ctx.strokeStyle = PAPER_SHADOW ? SHADOW : FACE; ctx.lineWidth = INKW * .9; ctx.beginPath(); ctx.moveTo(-hw, T * .02); ctx.lineTo(hw, T * .02); ctx.stroke(); }
@@ -665,7 +668,7 @@ class Actor {
     ctx.fillStyle = PAPER_SHADOW ? SHADOW : FACE; ctx.strokeStyle = PAPER_SHADOW ? SHADOW : FACE; ctx.lineWidth = INKW;
     if (s.glasses === 'shades') { ctx.beginPath(); ctx.roundRect(ex - R * .35, ey - R * .22, R * .62, R * .36, 3); ctx.fill(); ctx.beginPath(); ctx.moveTo(ex - R * .35, ey - R * .1); ctx.lineTo(-R * .05, ey - R * .15); ctx.stroke(); }
     else {
-      if (open > .3) { ctx.beginPath(); ctx.ellipse(ex, ey, R * .13, R * .16 * open, 0, 0, TAU); ctx.fill(); if (!PAPER_SHADOW) { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(ex + R * .04, ey - R * .05, R * .04, 0, TAU); ctx.fill(); } ctx.fillStyle = PAPER_SHADOW ? SHADOW : FACE; }
+      if (open > .3) { ctx.beginPath(); ctx.ellipse(ex, ey, R * .13, R * .16 * open, 0, 0, TAU); ctx.fill(); if (!PAPER_SHADOW) { ctx.fillStyle = litCol('#ffffff'); ctx.beginPath(); ctx.arc(ex + R * .04, ey - R * .05, R * .04, 0, TAU); ctx.fill(); } ctx.fillStyle = PAPER_SHADOW ? SHADOW : FACE; }
       else { ctx.beginPath(); ctx.moveTo(ex - R * .15, ey); ctx.lineTo(ex + R * .15, ey); ctx.stroke(); }
       if (s.glasses !== 'none') { ctx.lineWidth = INKW * .9; ctx.beginPath(); if (s.glasses === 'round') ctx.arc(ex, ey, R * .3, 0, TAU); else ctx.rect(ex - R * .3, ey - R * .25, R * .6, R * .48); ctx.stroke(); ctx.beginPath(); ctx.moveTo(ex - R * .3, ey - R * .05); ctx.lineTo(-R * .05, ey - R * .12); ctx.stroke(); }
     }
@@ -1103,10 +1106,10 @@ const Sfx = {
   init() { if (this.ctx || typeof window === 'undefined' || !(window.AudioContext || window.webkitAudioContext)) return; this.ctx = new (window.AudioContext || window.webkitAudioContext)(); this.ok = true; },
   tone(f, dur, type, vol, slide) { if (!this.ok) return; try { const c = this.ctx, o = c.createOscillator(), g = c.createGain(); o.type = type || 'square'; o.frequency.setValueAtTime(f, c.currentTime); if (slide) o.frequency.linearRampToValueAtTime(slide, c.currentTime + dur); g.gain.setValueAtTime(vol || .04, c.currentTime); g.gain.exponentialRampToValueAtTime(.0001, c.currentTime + dur); o.connect(g); g.connect(c.destination); o.start(); o.stop(c.currentTime + dur); } catch (e) {} },
   honk(dist) { const v = clamp(.06 * (1 - dist / 1400), 0, .06); if (v > .003) { this.tone(310 + Math.random() * 60, .25 + Math.random() * .3, 'square', v); this.tone(415, .25, 'square', v * .6); } },
-  siren(dist, ph) { const v = clamp(.03 * (1 - dist / 2400), 0, .03); if (v > .002) this.tone(ph ? 660 : 520, .45, 'sawtooth', v, ph ? 520 : 660); },
+
 };
 class Car {
-  constructor(lane, x, seed) { const r = RNG(seed); this.lane = lane; this.honkT = r.range(2, 12); this.emergency = r.chance(.08) ? r.pick(['police', 'ambulance']) : null; this.bus = !this.emergency && r.chance(.1); if (this.bus) { this.kind = 'bus'; this.len = 210; this.col = '#3a6fa0'; } this.sirenT = 0; this.x = x; this.dir = lane === 0 ? -1 : 1; this.v = r.range(180, 300); this.col = r.pick(CAR_COL); if (!this.bus) { this.kind = this.emergency ? (this.emergency === 'police' ? 'sedan' : 'van') : r.weighted([['sedan', 5], ['suv', 3], ['taxi', 2], ['van', 1.5], ['truck', .7]]); if (this.kind === 'taxi') this.col = '#e8c22a'; if (this.emergency) this.col = this.emergency === 'police' ? '#1a1c28' : '#f2f2f2'; this.len = this.kind === 'truck' ? 150 : this.kind === 'van' ? 120 : 100; } }
+  constructor(lane, x, seed) { const r = RNG(seed); this.lane = lane; this.honkT = r.range(2, 12); this.emergency = r.chance(.025) ? r.pick(['police', 'ambulance']) : null; this.bus = !this.emergency && r.chance(.1); if (this.bus) { this.kind = 'bus'; this.len = 210; this.col = '#3a6fa0'; } this.sirenT = 0; this.x = x; this.dir = lane === 0 ? -1 : 1; this.v = r.range(180, 300); this.col = r.pick(CAR_COL); if (!this.bus) { this.kind = this.emergency ? (this.emergency === 'police' ? 'sedan' : 'van') : r.weighted([['sedan', 5], ['suv', 3], ['taxi', 2], ['van', 1.5], ['truck', .7]]); if (this.kind === 'taxi') this.col = '#e8c22a'; if (this.emergency) this.col = this.emergency === 'police' ? '#1a1c28' : '#f2f2f2'; this.len = this.kind === 'truck' ? 150 : this.kind === 'van' ? 120 : 100; } }
   get y() { return this.lane === 0 ? ROAD_Y + ROAD_H * .3 : ROAD_Y + ROAD_H * .78; }
   update(dt, x0, x1, city, cars) {
     const light = city ? lightFor(city.dir, typeof Game !== 'undefined' ? Game.clock : 0) : 'green';
@@ -1120,8 +1123,8 @@ class Car {
     const G_ = typeof Game !== 'undefined' ? Game : null;
     if (G_ && G_.player && G_.scene && G_.scene.name === 'street') {
       const d = Math.abs(this.x - G_.player.x);
-      if (this.braking && light === 'green' && !this.emergency) { this.honkT -= dt; if (this.honkT <= 0) { this.honkT = 3 + Math.random() * 9; this.honk = .6; Sfx.honk(d); } } else if (Math.random() < dt * .02 && d < 900 && !this.emergency) { this.honk = .5; Sfx.honk(d); }
-      if (this.emergency) { this.sirenT += dt; if (this.sirenT > .5) { this.sirenT = 0; this.sirenPh = !this.sirenPh; Sfx.siren(d, this.sirenPh); } target = this.v * 1.4; }
+      if (this.braking && light === 'green' && !this.emergency) { this.honkT -= dt; if (this.honkT <= 0) { this.honkT = 8 + Math.random() * 16; this.honk = .6; Sfx.honk(d); } } else if (Math.random() < dt * .006 && d < 700 && !this.emergency) { this.honk = .5; Sfx.honk(d); }
+      if (this.emergency) target = this.v * 1.35;
     }
     if (this.honk > 0) this.honk -= dt;
   }
@@ -1764,7 +1767,7 @@ const Game = {
     p.x = back ? back.x - 70 : to.x0 + 100; p.y = GROUND + 20; p.facing = 1; p.vx = p.vy = 0; Camera.snapTo(p.x, p.y - 100, Camera.zoom);
     this.where = to.name; UI.prompt = null; this.action = null;
     const B = this.makeCanvas(W, H); if (B) { this.noUI = true; this.draw(); this.noUI = false; B.getContext('2d').drawImage(this.canvas, 0, 0); }
-    if (A && B) this.turn = { t: 0, dur: .55, A, B, sign }; UI.setHint(to.name, 2.5);
+    if (A && B) this.turn = { t: 0, dur: .38, A, B, sign }; UI.setHint(to.name, 2.5);
   },
   // ---- helpers scenes use
   movePlayer(dt, x0, x1, y0, y1) {
@@ -1815,29 +1818,18 @@ const Game = {
     this.scene.draw(this, ctx, cam, pal);
     // night vignette
     const v = ctx.createRadialGradient(cam.w / 2, cam.h / 2, cam.h * .35, cam.w / 2, cam.h / 2, cam.h * .95); v.addColorStop(0, 'rgba(5,6,16,0)'); v.addColorStop(1, 'rgba(5,6,16,.55)'); ctx.fillStyle = v; ctx.fillRect(0, 0, cam.w, cam.h);
-    if (this.turn && !this.noUI) { // whip pan: the street smears past as you swing round the corner
+    if (this.turn && !this.noUI) { // step round the corner: a short clean slide with a settle
       const T = this.turn, k = clamp(T.t / T.dur, 0, 1), W = cam.w, H = cam.h, S = -T.sign;
-      // velocity curve: accelerate hard, coast, settle
-      const e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
-      const spd = Math.pow(Math.sin(Math.PI * k), 2.4);      // peaks briefly mid-swing, settles fast
-      const travel = W * 1.35;
-      const ax = S * e * travel, bx = ax - S * travel;       // old slides out, new follows in
-      const zk = 1 + .08 * spd;                              // slight push in during the swing
+      // ease out with a small overshoot that settles back
+      const e = k < 1 ? 1 - Math.pow(1 - k, 3) : 1, over = Math.sin(k * Math.PI) * .012;
+      const ax = S * (e * W + over * W), bx = ax - S * W;
       ctx.save(); ctx.setTransform(cam.dpr, 0, 0, cam.dpr, 0, 0);
       ctx.fillStyle = '#05060c'; ctx.fillRect(0, 0, W, H);
-      const cw = W * zk, ch = H * zk, ox = (W - cw) / 2, oy = (H - ch) / 2 + Math.sin(k * Math.PI * 2) * 6;
-      const taps = spd > .1 ? 5 : 1, smear = spd * W * .055;
-      ctx.globalAlpha = 1 / taps;
-      for (let i = 0; i < taps; i++) { const off = (i / Math.max(1, taps - 1) - .5) * smear;
-        ctx.drawImage(T.A, ox + ax + off, oy, cw, ch); ctx.drawImage(T.B, ox + bx + off, oy, cw, ch); }
-      ctx.globalAlpha = 1;
-      // vertical streak highlights sell the speed
-      ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(255,225,170,${spd * .03})`;
-      for (let i = 0; i < 10; i++) { const sy = (i * 137 % H); ctx.fillRect(0, sy, W, 1 + spd); }
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.fillStyle = `rgba(4,5,14,${spd * .16})`; ctx.fillRect(0, 0, W, H);
-      // edge vignette pinches in at peak speed
-      const v = ctx.createLinearGradient(0, 0, W, 0); v.addColorStop(0, `rgba(4,5,14,${spd * .5})`); v.addColorStop(.5, 'rgba(4,5,14,0)'); v.addColorStop(1, `rgba(4,5,14,${spd * .5})`); ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
+      ctx.drawImage(T.A, ax, 0, W, H); ctx.drawImage(T.B, bx, 0, W, H);
+      // a soft seam so the two streets read as separate planes
+      const seam = bx + W; const g = ctx.createLinearGradient(seam - 26, 0, seam + 26, 0);
+      g.addColorStop(0, 'rgba(4,5,14,0)'); g.addColorStop(.5, 'rgba(4,5,14,.55)'); g.addColorStop(1, 'rgba(4,5,14,0)');
+      ctx.fillStyle = g; ctx.fillRect(seam - 26, 0, 52, H);
       ctx.restore();
     }
     if (!this.noUI) UI.draw(ctx, this);
