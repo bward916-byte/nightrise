@@ -494,12 +494,13 @@ class Actor {
   }
   draw(ctx, zoom) {
     const s = this.spec;
+    if (typeof Lights !== 'undefined') Lights.groundShadow(ctx, this.x, this.y, this.h, this.h * .38);
     ctx.save(); ctx.translate(this.x, this.y); ctx.scale(this.facing, 1);
-    // pool of lamp light under the feet
-    ctx.save(); ctx.globalAlpha = .22; ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(2, 1, this.h * .17, this.h * .035, 0, 0, TAU); ctx.fill(); ctx.restore();
     if (zoom < 0.16) { this.drawLOD(ctx); ctx.restore(); return; }
     if (!PAPER_SHADOW && zoom > .3) { PAPER_SHADOW = true; ctx.save(); ctx.translate(this.h * .025 * this.facing, this.h * .03); ctx.globalAlpha = .55; this.drawBody(ctx); ctx.restore(); PAPER_SHADOW = false; }
     this.drawBody(ctx);
+    // ambient dim + warm rim from the nearest light
+    if (typeof Lights !== 'undefined') { const li = Lights.at(this.x, this.y); ctx.save(); ctx.globalCompositeOperation = 'source-atop'; ctx.fillStyle = `rgba(10,14,34,${clamp(.34 - li * .32, 0, .34)})`; ctx.fillRect(-this.h, -this.h * 1.2, this.h * 2, this.h * 1.4); if (li > .08) { ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(255,214,150,${li * .12})`; ctx.fillRect(-this.h, -this.h * 1.2, this.h * 2, this.h * 1.4); } ctx.restore(); }
     ctx.restore();
     if (this.speech) this.drawSpeech(ctx, zoom);
   }
@@ -804,6 +805,43 @@ function buildCity() { return City.home(); }
 // traffic light phase: 0..1 over a 24s cycle. ew green [0,.4), yellow [.4,.5), ns green [.5,.9), yellow [.9,1)
 function lightPhase(clock) { return ((clock * 50) % 24) / 24; }
 function lightFor(dir, clock) { const p = lightPhase(clock); if (dir === 'ew') return p < .4 ? 'green' : p < .5 ? 'yellow' : 'red'; return p < .5 ? 'red' : p < .9 ? 'green' : 'yellow'; }
+// ---------- lighting ----------
+// Scene is drawn dim, then a light buffer is composited additively. Every lamp,
+// shop window, neon sign, headlight and lit apartment registers a light each frame.
+const Lights = {
+  list: [], shadowCasters: [],
+  clear() { this.list.length = 0; this.shadowCasters.length = 0; },
+  add(x, y, r, col, i) { if (this.list.length < 420) this.list.push({ x, y, r, col, i: i === undefined ? 1 : i }); },
+  // ground-level lights are what cast people's shadows
+  caster(x, y, r, i) { if (this.shadowCasters.length < 40) this.shadowCasters.push({ x, y, r, i: i || 1 }); },
+  draw(ctx, cam) {
+    if (!this.list.length) return;
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    for (const L of this.list) {
+      const g = ctx.createRadialGradient(L.x, L.y, 0, L.x, L.y, L.r);
+      g.addColorStop(0, `rgba(${L.col},${.30 * L.i})`); g.addColorStop(.25, `rgba(${L.col},${.085 * L.i})`); g.addColorStop(.6, `rgba(${L.col},${.018 * L.i})`); g.addColorStop(1, `rgba(${L.col},0)`);
+      ctx.fillStyle = g; ctx.fillRect(L.x - L.r, L.y - L.r, L.r * 2, L.r * 2);
+    }
+    ctx.restore();
+  },
+  // long soft shadow stretching away from the nearest strong light
+  groundShadow(ctx, x, y, h, w) {
+    let best = null, bi = 0;
+    for (const L of this.shadowCasters) { const d = Math.hypot(L.x - x, (L.y - y) * .5); if (d > L.r) continue; const i = L.i * (1 - d / L.r); if (i > bi) { bi = i; best = L; } }
+    ctx.save();
+    if (best) {
+      const dx = x - best.x, dist = Math.abs(dx) + 20, len = clamp(h * (60 / dist) * .8, h * .25, h * 2.4), dir = sgn(dx || 1);
+      ctx.globalAlpha = clamp(bi * .5, 0, .42); ctx.fillStyle = '#05060f';
+      ctx.beginPath(); ctx.moveTo(x - w * .35, y); ctx.lineTo(x + w * .35, y); ctx.lineTo(x + dir * len + w * .18, y + h * .075); ctx.lineTo(x + dir * len - w * .18, y + h * .075); ctx.closePath(); ctx.fill();
+    }
+    ctx.globalAlpha = .3; ctx.fillStyle = '#05060f'; ctx.beginPath(); ctx.ellipse(x, y + 1, w * .45, h * .028, 0, 0, TAU); ctx.fill();
+    ctx.restore();
+  },
+  // how lit a point is, 0..1 — used to tint people who walk under a lamp
+  at(x, y) { let v = 0; for (const L of this.shadowCasters) { const d = Math.hypot(L.x - x, (L.y - y) * .6); if (d < L.r) v += L.i * (1 - d / L.r); } return clamp(v, 0, 1); },
+};
+const LC = { warm: '255,214,150', lamp: '255,226,170', neonPink: '255,79,184', neonCyan: '51,233,255', head: '255,246,200', tail: '255,60,48', sign: '255,211,106', cool: '150,190,255' };
+
 // ---------- drawing ----------
 function drawSky(ctx, pal, cam) {
   const g = ctx.createLinearGradient(0, 0, 0, cam.h);
@@ -913,6 +951,7 @@ function drawBuilding(ctx, b, pal, zoom, isPlayerFloor) {
         else if (dim) { ctx.fillStyle = lit; ctx.globalAlpha = .18; }
         else { ctx.fillStyle = win; ctx.globalAlpha = 1; }
         ctx.fillRect(x, y, wW, wH); ctx.globalAlpha = 1;
+        if (on && detail > 9 && hash2(c * 3, f * 5 + b.id) < .16) Lights.add(x + wW / 2, y + wH / 2, 70, LC.warm, .22);
         if (on && detail > 9) drawRoom(ctx, x, y, wW, wH, hash2(f * 31 + c * 7, b.id + 11), hash2(c * 5 + 1, f * 3 + b.id), t, hash2(f + b.id, c * 13 + 5));
         // mullions and sills
         if (detail > 7) { ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(x + wW * .5 - .5, y, 1, wH); if (st !== 'glass') ctx.fillRect(x, y + wH * .5 - .5, wW, 1); if (st === 'glass') { ctx.fillRect(x + wW * .25 - .5, y, 1, wH); ctx.fillRect(x + wW * .75 - .5, y, 1, wH); } }
@@ -959,7 +998,7 @@ function drawGroundFloor(ctx, b, pal, zoom, base, win) {
     const dx = b.x + b.w / 2 - 44; ctx.fillStyle = '#fff2cc'; ctx.fillRect(dx, -FLOOR_H * .95, 88, FLOOR_H * .95); ctx.fillStyle = '#2b3550'; ctx.fillRect(dx + 42, -FLOOR_H * .95, 4, FLOOR_H * .95);
     ctx.fillStyle = '#10142a'; ctx.fillRect(b.x + b.w / 2 - 120, -gh - 8, 240, 14);
     ctx.fillStyle = '#ffe6a8'; ctx.font = `bold 15px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(b.name.toUpperCase(), b.x + b.w / 2, -gh - 1);
-    ctx.fillStyle = 'rgba(255,230,180,.12)'; ctx.beginPath(); ctx.moveTo(dx - 20, 0); ctx.lineTo(dx + 108, 0); ctx.lineTo(dx + 160, 60); ctx.lineTo(dx - 72, 60); ctx.fill();
+    ctx.fillStyle = 'rgba(255,230,180,.1)'; ctx.beginPath(); ctx.moveTo(dx - 20, 0); ctx.lineTo(dx + 108, 0); ctx.lineTo(dx + 160, 64); ctx.lineTo(dx - 72, 64); ctx.fill(); Lights.add(b.x + b.w / 2, -gh * .6, 260, LC.warm, .7); Lights.caster(b.x + b.w / 2, 16, 240, .7);
     b.door = { x: dx, w: 88 };
   } else {
     const n = Math.max(1, Math.round(b.w / 200)), sw = b.w / n;
@@ -972,7 +1011,8 @@ function drawGroundFloor(ctx, b, pal, zoom, base, win) {
       ctx.font = `bold 13px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       const flick = hash2(i, b.id + 1) < .15 && Math.sin((typeof Game !== 'undefined' ? Game.clock : 0) * 700 + i) > .9;
       if (!flick) { ctx.shadowColor = neon; ctx.shadowBlur = zoom > .5 ? 12 : 0; ctx.fillStyle = neon; ctx.fillText(name, x + sw * .42, -gh + 22); ctx.shadowBlur = 0; ctx.globalAlpha = .12; ctx.fillRect(x + 6, -gh + 8, sw * .72, 30); ctx.globalAlpha = 1; }
-      if (open) { ctx.fillStyle = 'rgba(255,220,160,.1)'; ctx.beginPath(); ctx.moveTo(x + 14, 0); ctx.lineTo(x + 14 + sw * .55, 0); ctx.lineTo(x + 14 + sw * .55 + 40, 50); ctx.lineTo(x - 26, 50); ctx.fill(); }
+      if (open) { ctx.fillStyle = 'rgba(255,220,160,.09)'; ctx.beginPath(); ctx.moveTo(x + 14, 0); ctx.lineTo(x + 14 + sw * .55, 0); ctx.lineTo(x + 14 + sw * .55 + 40, 54); ctx.lineTo(x - 26, 54); ctx.fill(); Lights.add(x + 14 + sw * .28, -gh * .5, 150, LC.warm, .6); Lights.caster(x + 14 + sw * .28, 14, 150, .6); }
+      if (!flick) Lights.add(x + sw * .42, -gh + 22, 105, neon === '#33e9ff' ? LC.neonCyan : neon === '#ff4fb8' ? LC.neonPink : LC.sign, .5);
     }
   }
 }
@@ -1040,7 +1080,7 @@ function drawIntersection(ctx, city, it, zoom, pal) {
   ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(x - 40, GROUND, 80, WALK_DEPTH + 6);
   if (zoom > .18) {
     const ew = lightFor(city.dir, t), ped = ew === 'green' ? 'stop' : 'walk';
-    const light = (lx, ly, state, facing) => { ctx.fillStyle = '#12141f'; ctx.fillRect(lx - 3, ly, 6, ROAD_Y - ly - 4); ctx.fillRect(lx - 3, ly, facing * 40, 5); ctx.fillStyle = '#1a1c24'; ctx.fillRect(lx + facing * 34 - 7, ly - 2, 14, 36); ['red', 'yellow', 'green'].forEach((c, i) => { ctx.fillStyle = c === state ? { red: '#ff3b30', yellow: '#ffcc33', green: '#3fdc6a' }[c] : '#2a2c34'; ctx.beginPath(); ctx.arc(lx + facing * 34, ly + 5 + i * 11, 4, 0, TAU); ctx.fill(); if (c === state) glow(ctx, lx + facing * 34, ly + 5 + i * 11, 22, c === 'red' ? 'rgba(255,60,50,A)' : c === 'yellow' ? 'rgba(255,204,51,A)' : 'rgba(63,220,106,A)', .35); }); };
+    const light = (lx, ly, state, facing) => { ctx.fillStyle = '#12141f'; ctx.fillRect(lx - 3, ly, 6, ROAD_Y - ly - 4); ctx.fillRect(lx - 3, ly, facing * 40, 5); ctx.fillStyle = '#1a1c24'; ctx.fillRect(lx + facing * 34 - 7, ly - 2, 14, 36); ['red', 'yellow', 'green'].forEach((c, i) => { ctx.fillStyle = c === state ? { red: '#ff3b30', yellow: '#ffcc33', green: '#3fdc6a' }[c] : '#2a2c34'; ctx.beginPath(); ctx.arc(lx + facing * 34, ly + 5 + i * 11, 4, 0, TAU); ctx.fill(); if (c === state) Lights.add(lx + facing * 34, ly + 5 + i * 11, 70, c === 'red' ? '255,60,50' : c === 'yellow' ? '255,204,51' : '63,220,106', .55); }); };
     light(x - half - 30, -150, ew, 1); light(x + half + 30, -150, ew, -1);
     // pedestrian signal + corner street signs
     for (const side of [-1, 1]) { const px = x + side * (half + 30); ctx.fillStyle = '#1a1c24'; ctx.fillRect(px - 8, -96, 16, 22); ctx.fillStyle = ped === 'walk' ? '#e8f0ff' : '#ff6a3a'; if (ped === 'walk') { ctx.fillRect(px - 2, -92, 4, 6); ctx.fillRect(px - 4, -86, 8, 8); } else { ctx.fillRect(px - 5, -90, 10, 10); }
@@ -1108,6 +1148,7 @@ class Car {
     ctx.fillStyle = '#0a0c14'; for (const wx of [-L * .3, L * .3]) { ctx.beginPath(); ctx.arc(wx, 0, 11, 0, TAU); ctx.fill(); ctx.fillStyle = '#5a5e70'; ctx.beginPath(); ctx.arc(wx, 0, 5, 0, TAU); ctx.fill(); ctx.fillStyle = '#0a0c14'; }
     // lights
     ctx.fillStyle = '#fff6c0'; ctx.fillRect(L / 2 - 6, -16, 6, 5); ctx.fillStyle = '#ff3b30'; ctx.fillRect(-L / 2, -16, 6, 5); if (this.braking) glow(ctx, -L / 2 + 2, -14, 26, 'rgba(255,60,48,A)', .5);
+    Lights.add(this.x + this.dir * (L / 2 + 40), this.y - 14, 130, LC.head, .55); Lights.add(this.x - this.dir * (L / 2), this.y - 12, 55, LC.tail, .35); if (this.lane === 1) Lights.caster(this.x + this.dir * 70, this.y - 6, 130, .35);
     { ctx.globalAlpha = .18; ctx.fillStyle = '#fff6c0'; ctx.beginPath(); ctx.moveTo(L / 2, -16); ctx.lineTo(L / 2 + 120, -30); ctx.lineTo(L / 2 + 120, 6); ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1; }
     ctx.restore();
   }
@@ -1251,6 +1292,7 @@ const StreetScene = {
     if (c.isHome && cam.zoom > .12) G.drawCart(ctx, G.cartMan.x - 62, GROUND + 6, cam.zoom);
     for (const a of actors) a.draw(ctx, cam.zoom);
     c.crowd.drawBehind(ctx, pal, cam.zoom, b); c.crowd.drawFront(ctx, pal, cam.zoom, b);
+    Lights.draw(ctx, cam);
     cam.end(ctx);
   },
 };
@@ -1716,12 +1758,13 @@ const Game = {
     if (this.turn) return;
     const from = this.city, to = City.get(it.cross.dir, it.cross.i), p = this.player;
     const W = Camera.w * Camera.dpr, H = Camera.h * Camera.dpr;
-    const A = this.makeCanvas(W, H); if (A) A.getContext('2d').drawImage(this.canvas, 0, 0);
+    const sign = it.x >= p.x ? 1 : -1;                       // which way you step into the crossing
+    const A = this.makeCanvas(W, H); if (A) { this.noUI = true; this.draw(); this.noUI = false; A.getContext('2d').drawImage(this.canvas, 0, 0); }
     this.setStreet(to); const back = to.inters.find(k => k.cross.dir === from.dir && k.cross.i === from.i);
-    p.x = back ? back.x - 60 : to.x0 + 100; p.y = GROUND + 20; p.facing = 1; p.vx = p.vy = 0; Camera.snapTo(p.x, p.y - 100, Camera.zoom);
+    p.x = back ? back.x - 70 : to.x0 + 100; p.y = GROUND + 20; p.facing = 1; p.vx = p.vy = 0; Camera.snapTo(p.x, p.y - 100, Camera.zoom);
     this.where = to.name; UI.prompt = null; this.action = null;
-    const B = this.makeCanvas(W, H); if (B) { this.draw(); B.getContext('2d').drawImage(this.canvas, 0, 0); }
-    if (A && B) this.turn = { t: 0, dur: .9, A, B, dirSign: 1 }; UI.setHint(to.name, 2.5);
+    const B = this.makeCanvas(W, H); if (B) { this.noUI = true; this.draw(); this.noUI = false; B.getContext('2d').drawImage(this.canvas, 0, 0); }
+    if (A && B) this.turn = { t: 0, dur: .55, A, B, sign }; UI.setHint(to.name, 2.5);
   },
   // ---- helpers scenes use
   movePlayer(dt, x0, x1, y0, y1) {
@@ -1768,19 +1811,36 @@ const Game = {
   draw() {
     const ctx = this.ctx, cam = Camera, pal = dayPalette();
     ctx.setTransform(cam.dpr, 0, 0, cam.dpr, 0, 0);
+    if (typeof Lights !== 'undefined') Lights.clear();
     this.scene.draw(this, ctx, cam, pal);
     // night vignette
     const v = ctx.createRadialGradient(cam.w / 2, cam.h / 2, cam.h * .35, cam.w / 2, cam.h / 2, cam.h * .95); v.addColorStop(0, 'rgba(5,6,16,0)'); v.addColorStop(1, 'rgba(5,6,16,.55)'); ctx.fillStyle = v; ctx.fillRect(0, 0, cam.w, cam.h);
-    if (this.turn) { // turning the corner: the old view folds away, the new one swings in
-      const k = easeInOut(clamp(this.turn.t / this.turn.dur, 0, 1)), a = k * Math.PI / 2, c = Math.cos(a), sn = Math.sin(a), n = c + sn, W = cam.w, H = cam.h, ow = W * c / n, nw = W * sn / n;
+    if (this.turn && !this.noUI) { // whip pan: the street smears past as you swing round the corner
+      const T = this.turn, k = clamp(T.t / T.dur, 0, 1), W = cam.w, H = cam.h, S = -T.sign;
+      // velocity curve: accelerate hard, coast, settle
+      const e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+      const spd = Math.pow(Math.sin(Math.PI * k), 2.4);      // peaks briefly mid-swing, settles fast
+      const travel = W * 1.35;
+      const ax = S * e * travel, bx = ax - S * travel;       // old slides out, new follows in
+      const zk = 1 + .08 * spd;                              // slight push in during the swing
       ctx.save(); ctx.setTransform(cam.dpr, 0, 0, cam.dpr, 0, 0);
       ctx.fillStyle = '#05060c'; ctx.fillRect(0, 0, W, H);
-      const sq = 1 - .08 * Math.sin(a * 2);
-      ctx.drawImage(this.turn.A, 0, H * (1 - sq) / 2, ow, H * sq); ctx.drawImage(this.turn.B, ow, H * (1 - sq) / 2, nw, H * sq);
-      ctx.fillStyle = `rgba(0,0,0,${.55 * sn})`; ctx.fillRect(0, 0, ow, H); ctx.fillStyle = `rgba(0,0,0,${.55 * c})`; ctx.fillRect(ow, 0, nw, H);
-      ctx.fillStyle = 'rgba(255,255,255,.08)'; ctx.fillRect(ow - 2, 0, 4, H); ctx.restore();
+      const cw = W * zk, ch = H * zk, ox = (W - cw) / 2, oy = (H - ch) / 2 + Math.sin(k * Math.PI * 2) * 6;
+      const taps = spd > .1 ? 5 : 1, smear = spd * W * .055;
+      ctx.globalAlpha = 1 / taps;
+      for (let i = 0; i < taps; i++) { const off = (i / Math.max(1, taps - 1) - .5) * smear;
+        ctx.drawImage(T.A, ox + ax + off, oy, cw, ch); ctx.drawImage(T.B, ox + bx + off, oy, cw, ch); }
+      ctx.globalAlpha = 1;
+      // vertical streak highlights sell the speed
+      ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(255,225,170,${spd * .03})`;
+      for (let i = 0; i < 10; i++) { const sy = (i * 137 % H); ctx.fillRect(0, sy, W, 1 + spd); }
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = `rgba(4,5,14,${spd * .16})`; ctx.fillRect(0, 0, W, H);
+      // edge vignette pinches in at peak speed
+      const v = ctx.createLinearGradient(0, 0, W, 0); v.addColorStop(0, `rgba(4,5,14,${spd * .5})`); v.addColorStop(.5, 'rgba(4,5,14,0)'); v.addColorStop(1, `rgba(4,5,14,${spd * .5})`); ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
+      ctx.restore();
     }
-    UI.draw(ctx, this);
+    if (!this.noUI) UI.draw(ctx, this);
     if (this.state === 'intro') { const s = Camera.seq; if (s && s.i === 1) UI.title(ctx, 'NIGHTRISE', 'a regular guy · floor 83', Math.min(1, s.t)); }
     if (this.fade > 0) { ctx.fillStyle = `rgba(3,4,10,${this.fade})`; ctx.fillRect(0, 0, cam.w, cam.h); }
     Input.drawStick(ctx);
