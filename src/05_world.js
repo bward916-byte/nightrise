@@ -356,11 +356,15 @@ function drawStreet(ctx, city, pal, zoom, cam) {
 function drawIntersection(ctx, city, it, zoom, pal) {
   const x = it.x, half = GAP / 2, t = typeof Game !== 'undefined' ? Game.clock : 0;
   // the cross street: sidewalk continues, road goes "into" the screen with converging edges
-  const depth = 900; ctx.fillStyle = '#1a1c2c'; ctx.beginPath(); ctx.moveTo(x - half + 20, GROUND); ctx.lineTo(x + half - 20, GROUND); ctx.lineTo(x + 30, GROUND - depth); ctx.lineTo(x - 30, GROUND - depth); ctx.fill();
+  const depth = 900; ctx.fillStyle = '#12141f'; ctx.beginPath(); ctx.moveTo(x - half + 20, GROUND); ctx.lineTo(x + half - 20, GROUND); ctx.lineTo(x + 30, GROUND - depth); ctx.lineTo(x - 30, GROUND - depth); ctx.fill();
+  // haze deep in the corridor so it has air in it
+  { const g = ctx.createLinearGradient(0, GROUND - depth, 0, GROUND); g.addColorStop(0, 'rgba(60,70,120,.55)'); g.addColorStop(1, 'rgba(20,24,44,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(x - half + 20, GROUND); ctx.lineTo(x + half - 20, GROUND); ctx.lineTo(x + 30, GROUND - depth); ctx.lineTo(x - 30, GROUND - depth); ctx.fill(); }
   // tiny facades receding on each side
   const seed = it.k * 13 + (city.i + 1) * 7; for (let side = -1; side <= 1; side += 2) for (let d = 0; d < 8; d++) { const f = d / 8, sc = 1 - f * .85, w = 90 * sc, h = (120 + hash2(seed + d, side + 3) * 400) * sc, bx = x + side * (half - 20 + 24 * f * 0) - (side > 0 ? 0 : w) + side * 0; const yy = GROUND - f * depth * .55; ctx.fillStyle = mix(FACADE[['glass', 'brick', 'concrete', 'dark'][(d + it.k) % 4]].base, pal.skyBot, f * .6); ctx.fillRect(side > 0 ? x + (half - 22) * sc + 8 : x - (half - 22) * sc - 8 - w * .0 - w, yy - h, w, h); ctx.fillStyle = `rgba(255,226,160,${.5 * (1 - f)})`; for (let k = 0; k < 6; k++) if (hash2(seed + d * 3 + k, side) < .3) ctx.fillRect((side > 0 ? x + (half - 22) * sc + 8 : x - (half - 22) * sc - 8 - w) + 8 * sc + (k % 3) * 26 * sc, yy - h + 12 * sc + Math.floor(k / 3) * 40 * sc, 8 * sc, 10 * sc); }
   // lane line into the distance, then crosswalk stripes across the main road
   ctx.fillStyle = '#c9b45a'; for (let d = 0; d < 10; d++) { const f = d / 10; ctx.fillRect(x - 2 * (1 - f * .8), GROUND - f * depth * .55 - 20, 4 * (1 - f * .8), 12 * (1 - f * .6)); }
+  // lamps receding down the cross street
+  for (let d = 1; d < 5; d++) { const f = d / 5, sc = 1 - f * .8, yy = GROUND - f * depth * .55; for (const side of [-1, 1]) { const lx = x + side * (half - 16) * sc; ctx.fillStyle = '#ffe9a8'; ctx.globalAlpha = 1 - f * .5; ctx.beginPath(); ctx.ellipse(lx, yy - 150 * sc, 8 * sc, 4 * sc, 0, 0, TAU); ctx.fill(); ctx.globalAlpha = 1; if (typeof Lights !== 'undefined') Lights.add(lx, yy - 150 * sc, 130 * sc, LC.lamp, .7 * (1 - f * .5)); } }
   ctx.fillStyle = 'rgba(255,255,255,.75)'; for (let k = 0; k < 7; k++) ctx.fillRect(x - half + 24 + k * 26, ROAD_Y + 6, 16, ROAD_H - 12);
   ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.fillRect(x - half - 8, ROAD_Y + 2, 5, ROAD_H / 2 - 4); ctx.fillRect(x + half + 3, ROAD_Y + ROAD_H / 2 + 2, 5, ROAD_H / 2 - 4);
   // crosswalk on the sidewalk (where the player crosses)
