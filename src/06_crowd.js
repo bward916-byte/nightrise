@@ -12,7 +12,10 @@ class Crowd {
   }
   update(dt, player, bounds) {
     const c = this.city, x0 = c.x0 - 300, x1 = c.x1 + 300;
+    const density = typeof Game !== 'undefined' ? Game.density() : 1; const active = Math.floor(this.npcs.length * density);
+    this.npcs.forEach((a, idx) => { const want = idx < active; if (want !== !a.hidden) { if (want) { a.hidden = false; const side = Math.random() < .5 ? -1 : 1; a.x = clamp(side < 0 ? bounds.x0 - 250 - Math.random() * 400 : bounds.x1 + 250 + Math.random() * 400, x0, x1); } else if (a.x < bounds.x0 - 150 || a.x > bounds.x1 + 150) a.hidden = true; } });
     for (const a of this.npcs) {
+      if (a.hidden) continue;
       const near = a.x > bounds.x0 - 400 && a.x < bounds.x1 + 400;
       if (a.wait > 0) { a.wait -= dt; a.vx = a.vy = 0; }
       else {
@@ -27,5 +30,5 @@ class Crowd {
   }
   drawBehind(ctx, pal, zoom, bounds) { for (const car of this.cars) if (car.lane === 0 && car.x > bounds.x0 - 200 && car.x < bounds.x1 + 200) car.draw(ctx, pal, zoom); }
   drawFront(ctx, pal, zoom, bounds) { for (const car of this.cars) if (car.lane === 1 && car.x > bounds.x0 - 200 && car.x < bounds.x1 + 200) car.draw(ctx, pal, zoom); }
-  visible(bounds) { return this.npcs.filter(a => a.x > bounds.x0 - 100 && a.x < bounds.x1 + 100); }
+  visible(bounds) { return this.npcs.filter(a => !a.hidden && a.x > bounds.x0 - 100 && a.x < bounds.x1 + 100); }
 }
