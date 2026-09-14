@@ -25,4 +25,11 @@ G.player.x = ctx.TOWER.x + ctx.TOWER.w / 2 - 150; G.update(1/60); act(); settle(
 G.player.x = 60; G.update(1/60); act(); settle(); assert(G.scene.name === 'street'); G.draw();
 // render everything at every zoom
 let n = 0; for (const z of [2.4, 1, .42, .15, .06]) for (const a of Object.keys(ctx.ARCHETYPES)) for (const p of Object.keys(ctx.POSTURES)) { const act2 = new ctx.Actor(ctx.genCharacter(n++, a)); act2.setEmote(p, 5); act2.update(.5); ctx.inkW(z); act2.draw(canvas.getContext('2d'), z); }
+// travel loop
+G.cash = 500; G.player.x = G.taxiX; G.update(1/60); assert(ctx.UI.prompt.startsWith('Taxi'), ctx.UI.prompt); act(); settle(); assert(G.scene.name === 'airport', G.scene.name); G.draw();
+G.player.x = 640; G.update(1/60); act(); assert(ctx.AirportScene.board); G.draw();
+for (const d of ctx.DESTS) { ctx.AirportScene.fly(G, d); settle(); assert(G.scene.name === 'flight'); G.draw(); step(60 * 6); assert(G.scene.name === 'landmark', G.scene.name + ' ' + d.id); step(30); G.draw(); step(60 * 5); G.draw();
+  G.player.x = G.scene.w * .55; G.update(1/60); act(); G.player.x = 60; G.update(1/60); act(); settle(); step(60 * 6); assert(G.scene.name === 'airport', 'back at airport from ' + d.id); G.player.x = 640; G.update(1/60); act(); }
+assert(G.stamps.length === ctx.DESTS.length, 'all stamps');
+ctx.AirportScene.board = false; G.player.x = 60; G.update(1/60); act(); settle(); assert(G.scene.name === 'street');
 console.log('test1 ok');
