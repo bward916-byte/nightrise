@@ -152,7 +152,7 @@ const ElevatorScene = {
       shadowCut(ctx, '#b8a068', px, py, pw, ph, 8);
       ctx.fillStyle = '#2a2436'; ctx.font = `bold 14px ${FONT}`; ctx.textAlign = 'center'; ctx.fillText('SELECT FLOOR', px + pw / 2, py + 22);
       list.forEach((f, i) => { const r = Math.floor(i / cols), c = i % cols, x = px + 10 + c * (bw + gap), y = py + 40 + r * (bw + gap); const isSel = f === this.sel, here = f === G.floor; UI.button(ctx, 'fl:' + f, x, y, bw, bw, this.label(f), true, isSel ? '#ffd36a' : here ? '#6a6a7a' : f === 83 ? '#ffe6c0' : '#ece4d0', '#1c1a24'); });
-      UI.button(ctx, 'esc', px + pw / 2 - 50, py + ph - 14, 100, 30, 'Step out', true);
+      UI.button(ctx, 'esc', px + pw / 2 - 110, py + ph - 14, 100, 30, 'Step out', true); UI.button(ctx, 'fl:83', px + pw / 2 + 10, py + ph - 14, 100, 30, 'Home · 83', true, '#ffe6c0');
     }
   },
 };
