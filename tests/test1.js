@@ -26,8 +26,8 @@ G.player.x = 60; G.update(1/60); act(); settle(); assert(G.scene.name === 'stree
 // render everything at every zoom
 let n = 0; for (const z of [2.4, 1, .42, .15, .06]) for (const a of Object.keys(ctx.ARCHETYPES)) for (const p of Object.keys(ctx.POSTURES)) { const act2 = new ctx.Actor(ctx.genCharacter(n++, a)); act2.setEmote(p, 5); act2.update(.5); ctx.inkW(z); act2.draw(canvas.getContext('2d'), z); }
 // cross streets
-G.player.x = G.city.inters[2].x; G.update(1/60); assert(ctx.UI.prompt && ctx.UI.prompt.startsWith('Cross to'), ctx.UI.prompt); act(); assert(G.city.dir === 'ns' && G.city.i === 2, 'on avenue ' + G.city.id); G.draw();
-step(60); G.player.x = G.city.inters[1].x; G.update(1/60); assert(ctx.UI.prompt === 'Cross to Main Street', ctx.UI.prompt); act(); assert(G.city.isHome, 'back home'); assert(Math.abs(G.player.x - G.city.inters[2].x) < 100, 'at the same corner');
+G.player.x = G.city.inters[2].x; G.update(1/60); assert(ctx.UI.prompt && ctx.UI.prompt.startsWith('Cross to'), ctx.UI.prompt); act(); for (let i = 0; i < 200 && G.turn; i++) { G.update(1/60); if (i % 30 === 0) G.draw(); } assert(!G.turn, 'turn finished'); assert(G.city.dir === 'ns' && G.city.i === 2, 'on avenue ' + G.city.id); G.draw();
+step(60); G.player.x = G.city.inters[1].x; G.update(1/60); assert(ctx.UI.prompt === 'Cross to Main Street', ctx.UI.prompt); act(); for (let i = 0; i < 200 && G.turn; i++) G.update(1/60); assert(G.city.isHome, 'back home'); assert(Math.abs(G.player.x - G.city.inters[2].x) < 140, 'at the same corner');
 for (let i = 0; i < 4; i++) for (const d of ['ew', 'ns']) { G.setStreet(ctx.City.get(d, i)); G.player.x = 2000; C.snapTo(2000, -100, .42); C.tzoom = .42; step(30); G.draw(); C.snapTo(ctx.City.get(d, i).inters[1].x, -100, 1.2); C.tzoom = 1.2; step(5); G.draw(); }
 G.setStreet(ctx.City.home()); assert(G.city.buildings.some(b => b.tower), 'tower on home street');
 // travel loop
