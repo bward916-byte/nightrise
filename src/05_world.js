@@ -55,7 +55,7 @@ function buildStreet(dir, i) {
   while (bx < x1 + 14000) { const w = r.int(140, 520), f = r.int(8, 70); back.push({ x: bx, w, h: f * FLOOR_H, style: r.pick(['dark', 'glass', 'concrete']), cols: Math.round(w / 70) }); bx += w + r.int(20, 120); }
   // street furniture picks: puddles, pigeons, parked cars, subway entrance
   const puddles = []; for (let k = 0; k < 14; k++) puddles.push({ x: r.range(x0, x1), w: r.range(40, 120), col: r.pick(NEON) });
-  const pigeons = []; for (let k = 0; k < 5; k++) { const px = r.range(x0, x1); const flock = []; for (let m = 0; m < r.int(3, 7); m++) flock.push({ x: px + r.range(-30, 30), y: GROUND + r.range(6, WALK_DEPTH), fly: 0, vx: 0, vy: 0, ph: r() * 10 }); pigeons.push(...flock); }
+  const pigeons = []; for (let k = 0; k < 6; k++) { const px = r.range(x0, x1), home = px; for (let m = 0; m < r.int(4, 9); m++) pigeons.push({ x: px + r.range(-45, 45), y: GROUND + r.range(6, WALK_DEPTH), home, fly: 0, vx: 0, vy: 0, ph: r() * 10, st: 'peck', t: r.range(0, 3), hop: 0, face: r.chance(.5) ? 1 : -1, sz: r.range(.85, 1.15), col: r.weighted([['#8a8e9a', 5], ['#6e7280', 3], ['#a8a49a', 2], ['#5a5e6a', 2], ['#b8b4aa', 1]]), perch: null, land: 0 }); }
   const parked = []; for (let k = 0; k < 10; k++) parked.push({ x: r.range(x0, x1), col: r.pick(CAR_COL), kind: r.pick(['sedan', 'sedan', 'suv', 'van']) });
   const subway = r.chance(.5) ? r.range(x0 + 300, x1 - 300) : null;
   return { dir, i, id: City.id(dir, i), name: City.name(dir, i), buildings: B, alley, back, x0, x1, inters, isHome, district, puddles, pigeons, parked, subway, taxiX: isHome ? TOWER.x - 520 : null, crowd: null };
@@ -319,9 +319,37 @@ function drawStreet(ctx, city, pal, zoom, cam) {
   // newspaper boxes, bike racks, mailboxes
   if (zoom > .3) for (let x = Math.floor(x0 / 620) * 620 + 310; x < x1; x += 620) { const k = hash2(x, 9); if (city.inters.some(it => Math.abs(it.x - x) < GAP)) continue; if (k < .3) { ctx.fillStyle = ['#b0413e', '#2f6f9f', '#d9b23a'][Math.floor(k * 10) % 3]; ctx.fillRect(x - 8, ROAD_Y - 30, 16, 26); ctx.fillStyle = 'rgba(255,255,255,.5)'; ctx.fillRect(x - 6, ROAD_Y - 28, 12, 10); } else if (k < .5) { ctx.fillStyle = '#5a5e70'; for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(x + i * 14, ROAD_Y - 12, 8, Math.PI, TAU); ctx.fill(); } ctx.fillStyle = '#3a3d52'; ctx.fillRect(x - 6, ROAD_Y - 12, 40, 4); } else if (k < .62) { ctx.fillStyle = '#2f4f8f'; ctx.beginPath(); ctx.roundRect(x - 9, ROAD_Y - 34, 18, 30, 4); ctx.fill(); ctx.fillStyle = '#1e3060'; ctx.fillRect(x - 9, ROAD_Y - 22, 18, 3); } }
   // pigeons
-  if (zoom > .3) for (const pg of city.pigeons) if (pg.x > x0 && pg.x < x1) { ctx.fillStyle = '#8a8e9a'; if (pg.fly > 0) { ctx.beginPath(); ctx.ellipse(pg.x, pg.y, 5, 3, 0, 0, TAU); ctx.fill(); const f = Math.sin(pg.ph + (typeof Game !== 'undefined' ? Game.clock * 50 : 0) * 30) * 5; ctx.fillRect(pg.x - 9, pg.y - f, 8, 1.5); ctx.fillRect(pg.x + 1, pg.y - f, 8, 1.5); } else { ctx.beginPath(); ctx.ellipse(pg.x, pg.y - 3, 5, 3.5, 0, 0, TAU); ctx.fill(); ctx.beginPath(); ctx.arc(pg.x + 4, pg.y - 6, 2, 0, TAU); ctx.fill(); } }
-  // a helicopter far overhead with a searchlight
-  if (zoom > .08) { const t = (typeof Game !== 'undefined' ? Game.clock : 0) * 50; const hx = city.x0 - 1500 + ((t * 70) % (city.x1 - city.x0 + 3000)), hy = -2600 + Math.sin(t * .3) * 200; ctx.fillStyle = '#0a0c14'; ctx.fillRect(hx - 30, hy, 60, 16); ctx.fillRect(hx + 30, hy + 2, 50, 6); ctx.fillRect(hx - 70, hy + 6 + Math.sin(t * 40) * 2, 140, 2); ctx.fillStyle = Math.floor(t * 4) % 2 ? '#ff3b30' : '#3a2a2a'; ctx.fillRect(hx - 2, hy - 4, 4, 4); ctx.fillStyle = 'rgba(255,240,200,.07)'; ctx.beginPath(); ctx.moveTo(hx, hy + 16); ctx.lineTo(hx + Math.sin(t * .5) * 500 - 200, ROAD_Y); ctx.lineTo(hx + Math.sin(t * .5) * 500 + 200, ROAD_Y); ctx.fill(); }
+  if (zoom > .22) { const T = (typeof Game !== 'undefined' ? Game.clock : 0) * 50;
+    for (const pg of city.pigeons) { if (pg.x < x0 - 40 || pg.x > x1 + 40) continue;
+      const sc = pg.sz, body = pg.col, dark = shade(body, .62), head = shade(body, .8);
+      ctx.save(); ctx.translate(pg.x, pg.y - pg.hop); ctx.scale(pg.face * sc, sc);
+      if (pg.st === 'fly') {
+        const flap = Math.sin(pg.ph + T * 22);
+        ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.beginPath(); ctx.ellipse(0, (GROUND + 24 - pg.y + pg.hop), 7, 2, 0, 0, TAU); ctx.fill();
+        ctx.fillStyle = dark; ctx.beginPath(); ctx.moveTo(-1, -1); ctx.quadraticCurveTo(-7, -4 - flap * 7, -14, -1 - flap * 9); ctx.quadraticCurveTo(-7, 1 - flap * 3, -1, 1); ctx.fill();
+        ctx.fillStyle = body; ctx.beginPath(); ctx.ellipse(0, 0, 6.5, 3.4, -.12, 0, TAU); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(-5, -.4); ctx.lineTo(-10.4, 1.6); ctx.lineTo(-10.2, 3.2); ctx.lineTo(-5, 2); ctx.fill();
+        ctx.fillStyle = head; ctx.beginPath(); ctx.arc(5.4, -2.4, 2.5, 0, TAU); ctx.fill();
+        ctx.fillStyle = '#e8a23a'; ctx.beginPath(); ctx.moveTo(7.4, -2.2); ctx.lineTo(10.4, -1.4); ctx.lineTo(7.4, -.7); ctx.fill();
+        ctx.fillStyle = shade(body, 1.25); ctx.beginPath(); ctx.moveTo(-1, -1.5); ctx.quadraticCurveTo(-6, -3 + flap * 6, -12, 1 + flap * 8); ctx.quadraticCurveTo(-6, 1 + flap * 3, -1, .5); ctx.fill();
+      } else {
+        const peck = pg.st === 'peck' ? clamp(Math.sin(T * 7 + pg.ph) * 1.6, -.2, 1) : 0, bob = pg.st === 'walk' ? Math.sin(T * 9 + pg.ph) * .7 : 0;
+        ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.beginPath(); ctx.ellipse(0, pg.hop + 1, 6.5, 1.8, 0, 0, TAU); ctx.fill();
+        ctx.strokeStyle = '#d98a3a'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-1 + bob, -1); ctx.lineTo(-2 - bob, 0); ctx.moveTo(2 - bob, -1); ctx.lineTo(3 + bob, 0); ctx.stroke();
+        ctx.fillStyle = body; ctx.beginPath(); ctx.ellipse(0, -4, 6.2, 4, -.08, 0, TAU); ctx.fill();
+        ctx.fillStyle = dark; ctx.beginPath(); ctx.moveTo(-2, -5); ctx.quadraticCurveTo(-5, -2.5, -5.5, -1.5); ctx.quadraticCurveTo(-1, -3, 1, -5); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(-4.4, -5.6); ctx.lineTo(-9.4, -3.6 + bob * .4); ctx.lineTo(-9.6, -1.6 + bob * .4); ctx.lineTo(-4.4, -2.4); ctx.fill();
+        const hx = 4.4 + peck * 1.7, hy = -9.4 + peck * 6.2;
+        ctx.fillStyle = body; ctx.beginPath(); ctx.moveTo(1.6, -7.4); ctx.quadraticCurveTo(hx - 1.8, hy + 2.2, hx - .4, hy + .6); ctx.quadraticCurveTo(hx + 1.8, hy + 2.6, 4.6, -5.6); ctx.fill();
+        ctx.fillStyle = head; ctx.beginPath(); ctx.ellipse(hx, hy, 2.7, 2.4, .1, 0, TAU); ctx.fill();
+        ctx.fillStyle = '#4a7a8a'; ctx.globalAlpha = .45; ctx.beginPath(); ctx.ellipse(hx - 1.2, hy + 1.8, 1.8, 1.3, 0, 0, TAU); ctx.fill(); ctx.globalAlpha = 1;
+        ctx.fillStyle = shade(body, 1.22); ctx.beginPath(); ctx.ellipse(2.6, -3.4, 2.6, 2.2, -.2, 0, TAU); ctx.fill();
+        ctx.fillStyle = '#d9913a'; ctx.beginPath(); ctx.moveTo(hx + 2.1, hy - .4); ctx.lineTo(hx + 4.6, hy + .7); ctx.lineTo(hx + 2.1, hy + 1.3); ctx.fill(); ctx.fillStyle = '#e8e2d2'; ctx.beginPath(); ctx.ellipse(hx + 2.2, hy - .5, .9, .7, 0, 0, TAU); ctx.fill();
+        ctx.fillStyle = '#e8563a'; ctx.beginPath(); ctx.arc(hx + 1.5, hy - 1, .5, 0, TAU); ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
   // steam from a manhole
   if (zoom > .3) { const t = (typeof Game !== 'undefined' ? Game.clock : 0) * 60; for (let x = Math.floor(x0 / 1300) * 1300 + 500; x < x1; x += 1300) { ctx.fillStyle = 'rgba(200,200,230,.08)'; for (let i = 0; i < 5; i++) { const ph = (t * .3 + i * 20) % 100; ctx.beginPath(); ctx.arc(x + Math.sin(ph * .1 + i) * 10, ROAD_Y + 40 - ph, 12 + ph * .3, 0, TAU); ctx.fill(); } } }
 }
