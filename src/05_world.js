@@ -20,7 +20,7 @@ function hash2(a, b) { let h = (a * 374761393 + b * 668265263) | 0; h = (h ^ (h 
 // Buildings in a row, side view. x ranges, with gaps for alley & streets.
 function buildCity() {
   const r = RNG(1983), B = [];
-  const add = (x, w, floors, style, extra) => { const b = Object.assign({ x, w, floors, h: floors * FLOOR_H, style, cols: Math.max(2, Math.round(w / 64)), roof: r.pick(['flat', 'tank', 'ac', 'antenna', 'flat']), id: B.length }, extra); B.push(b); return b; };
+  const add = (x, w, floors, style, extra) => { const b = Object.assign({ x, w, floors, h: floors * FLOOR_H, style, cols: Math.max(2, Math.round(w / 64)), roof: r.pick(['flat', 'tank', 'ac', 'antenna', 'flat']), id: B.length, setback: floors > 14 && r.chance(.45) ? { at: r.int(Math.floor(floors * .4), Math.floor(floors * .75)), inset: r.range(.12, .3) } : null, escape: style === 'brick' && r.chance(.7) }, extra); B.push(b); return b; };
   // left of tower
   let x = TOWER.x - 60;
   for (let i = 0; i < 9; i++) { const w = r.int(180, 420), f = r.int(6, 38); x -= w; add(x, w, f, r.pick(Object.keys(FACADE))); x -= r.int(0, 14); }
@@ -62,47 +62,85 @@ function drawBackdrop(ctx, city, cam, pal) {
   for (const k of city.back) {
     if (k.x + k.w < px - cam.w / cam.zoom || k.x > px + cam.w / cam.zoom) continue;
     ctx.fillStyle = mix(haze, FACADE[k.style].base, .55); ctx.fillRect(k.x, -k.h, k.w, k.h);
-    if (cam.zoom > .04) { ctx.fillStyle = '#ffe0a0'; ctx.globalAlpha = .3; const rows = Math.floor(k.h / FLOOR_H); for (let f = 0; f < rows; f += 2) for (let c = 0; c < k.cols; c++) if (hash2(k.x + c, f) < .4) ctx.fillRect(k.x + 10 + c * (k.w / k.cols), -f * FLOOR_H - FLOOR_H * .6, 10, 12); ctx.globalAlpha = .55; }
+    if (cam.zoom > .04) { ctx.fillStyle = '#ffe0a0'; ctx.globalAlpha = .3; const rows = Math.floor(k.h / FLOOR_H); for (let f = 0; f < rows; f += 2) for (let c = 0; c < k.cols; c++) if (hash2(k.x + c, f) < .22) ctx.fillRect(k.x + 10 + c * (k.w / k.cols), -f * FLOOR_H - FLOOR_H * .6, 10, 12); ctx.globalAlpha = .55; }
   }
   ctx.restore();
 }
+// what's going on inside a lit window
+function drawRoom(ctx, x, y, w, h, kind, k, t) {
+  if (kind < .14) { // floor lamp
+    ctx.fillStyle = '#ffd88a'; ctx.beginPath(); ctx.arc(x + w * (.25 + k * .5), y + h * .45, h * .12, 0, TAU); ctx.fill(); ctx.fillStyle = 'rgba(40,30,20,.5)'; ctx.fillRect(x + w * (.25 + k * .5) - 1, y + h * .5, 2, h * .5);
+  } else if (kind < .21) { // standing person
+    const px = x + w * (.3 + k * .4); ctx.fillStyle = '#2a2230'; ctx.beginPath(); ctx.arc(px, y + h * .38, h * .12, 0, TAU); ctx.fill(); ctx.beginPath(); ctx.roundRect(px - h * .13, y + h * .5, h * .26, h * .5, h * .06); ctx.fill();
+  } else if (kind < .33) { // TV glow, flickering
+    const f = .6 + Math.sin(t * 9 + k * 40) * .25 + Math.sin(t * 23 + k * 7) * .15; ctx.fillStyle = `rgba(120,180,255,${.45 * f})`; ctx.fillRect(x, y, w, h); ctx.fillStyle = '#2a2230'; ctx.beginPath(); ctx.arc(x + w * .65, y + h * .55, h * .12, 0, TAU); ctx.fill(); ctx.fillRect(x + w * .65 - h * .16, y + h * .68, h * .32, h * .32);
+  } else if (kind < .52) { // curtains half drawn
+    ctx.fillStyle = 'rgba(120,60,70,.75)'; ctx.fillRect(x, y, w * (.3 + k * .3), h); ctx.fillStyle = 'rgba(40,20,30,.4)'; ctx.fillRect(x + w * (.3 + k * .3) - 2, y, 2, h);
+  } else if (kind < .68) { // blinds
+    ctx.fillStyle = 'rgba(30,25,40,.6)'; const n = Math.max(3, Math.floor(h / 4)); for (let i = 0; i < n; i += 1) if (i % 2 === 0) ctx.fillRect(x, y + h * i / n, w, h / n);
+  } else if (kind < .80) { // plant on the sill
+    ctx.fillStyle = '#2a5a3a'; ctx.beginPath(); ctx.arc(x + w * .25, y + h * .75, h * .16, 0, TAU); ctx.arc(x + w * .35, y + h * .68, h * .13, 0, TAU); ctx.fill(); ctx.fillStyle = '#5a3a2a'; ctx.fillRect(x + w * .2, y + h * .85, w * .2, h * .15);
+  } else if (kind < .85) { // sitting at a desk
+    const px = x + w * .5; ctx.fillStyle = '#2a2230'; ctx.beginPath(); ctx.arc(px, y + h * .5, h * .11, 0, TAU); ctx.fill(); ctx.fillRect(px - h * .14, y + h * .62, h * .28, h * .25); ctx.fillStyle = 'rgba(40,30,30,.6)'; ctx.fillRect(x + w * .15, y + h * .8, w * .7, h * .06);
+  } else { // wall art / bookshelf
+    ctx.fillStyle = 'rgba(80,50,40,.6)'; ctx.fillRect(x + w * .15, y + h * .2, w * .3, h * .3); ctx.fillStyle = 'rgba(60,60,80,.5)'; for (let i = 0; i < 3; i++) ctx.fillRect(x + w * .55, y + h * (.2 + i * .25), w * .3, h * .06);
+  }
+}
 function drawBuilding(ctx, b, pal, zoom, isPlayerFloor) {
-  const F = FACADE[b.style];
-  const base = F.base, win = F.win, lit = F.lit;
-  // cut-paper drop shadow, then the slab
-  ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(b.x + 10, -b.h + 10, b.w, b.h);
-  ctx.fillStyle = base; ctx.fillRect(b.x, -b.h, b.w, b.h);
-  const winW = b.w / b.cols, detail = FLOOR_H * zoom;
-  if (detail < 2.2) {
-    ctx.fillStyle = lit; ctx.globalAlpha = .55;
-    for (let f = 0; f < b.floors; f += 2) for (let c = 0; c < b.cols; c++) if (hash2(b.id * 97 + c, f) < pal.glow) ctx.fillRect(b.x + c * winW + winW * .25, -f * FLOOR_H - FLOOR_H * .7, winW * .5, FLOOR_H * .5);
+  const F = FACADE[b.style], base = F.base, win = F.win, lit = F.lit, st = b.style;
+  const t = typeof Game !== 'undefined' ? Game.clock * 50 : 0;
+  const widthAt = f => b.setback && f >= b.setback.at ? b.w * (1 - b.setback.inset * 2) : b.w;
+  const xAt = f => b.setback && f >= b.setback.at ? b.x + b.w * b.setback.inset : b.x;
+  // silhouette with drop shadow
+  const slab = (dx, dy, col) => { ctx.fillStyle = col; if (b.setback) { const sy = -b.setback.at * FLOOR_H; ctx.fillRect(b.x + dx, sy + dy, b.w, b.h - (-sy) + 0); ctx.fillRect(xAt(b.setback.at) + dx, -b.h + dy, widthAt(b.setback.at), -sy - b.h * 0 + b.h + sy); } else ctx.fillRect(b.x + dx, -b.h + dy, b.w, b.h); };
+  slab(10, 10, 'rgba(0,0,0,.35)'); slab(0, 0, base);
+  const detail = FLOOR_H * zoom, cols = b.cols, winW = b.w / cols;
+  if (detail < 1.6) {
+    // far: faint floor bands + sparse lit dots
+    ctx.fillStyle = 'rgba(255,255,255,.04)'; for (let f = 0; f < b.floors; f += 2) ctx.fillRect(xAt(f), -f * FLOOR_H - FLOOR_H, widthAt(f), FLOOR_H);
+    ctx.fillStyle = lit; ctx.globalAlpha = .7;
+    for (let f = 0; f < b.floors; f++) for (let c = 0; c < cols; c++) { const x = b.x + c * winW + winW * .3; if (x < xAt(f) || x > xAt(f) + widthAt(f)) continue; if (hash2(b.id * 97 + c, f) < pal.glow) ctx.fillRect(x, -f * FLOOR_H - FLOOR_H * .7, winW * .45, FLOOR_H * .45); }
     ctx.globalAlpha = 1;
   } else {
-    const wW = winW * .55, wH = FLOOR_H * .5, ox = winW * .225, oy = FLOOR_H * .3;
+    // spandrel bands (floor slabs) give the facade structure
+    if (st === 'glass' || st === 'dark') { ctx.fillStyle = 'rgba(0,0,0,.28)'; for (let f = 0; f < b.floors; f++) ctx.fillRect(xAt(f), -f * FLOOR_H - FLOOR_H * .18, widthAt(f), FLOOR_H * .18); }
+    if (st === 'concrete' || st === 'stone' || st === 'tan') { ctx.fillStyle = 'rgba(255,255,255,.05)'; for (let f = 0; f < b.floors; f++) ctx.fillRect(xAt(f), -f * FLOOR_H - FLOOR_H, widthAt(f), 2); }
+    if (st === 'brick' && detail > 6) { ctx.fillStyle = 'rgba(0,0,0,.12)'; for (let y = -b.h; y < 0; y += 8) ctx.fillRect(b.x, y, b.w, 1); }
+    const wW = st === 'glass' ? winW * .86 : winW * .5, wH = st === 'glass' ? FLOOR_H * .62 : FLOOR_H * .5, ox = (winW - wW) / 2, oy = st === 'glass' ? FLOOR_H * .2 : FLOOR_H * .3;
     for (let f = 0; f < b.floors; f++) {
-      const y = -f * FLOOR_H - FLOOR_H + oy;
       if (f === 0 && !b.tower) continue;
-      for (let c = 0; c < b.cols; c++) {
-        const x = b.x + c * winW + ox, h = hash2(b.id * 97 + c, f);
-        const on = h < pal.glow || (isPlayerFloor && f === PLAYER_FLOOR - 1 && c === 3);
-        if (on) { const warm = hash2(c * 7, f * 3 + b.id) ; ctx.fillStyle = warm < .15 ? '#a9d8ff' : warm < .3 ? '#ffb3c6' : lit; ctx.globalAlpha = .75 + hash2(c, f) * .25; }
+      const y = -f * FLOOR_H - FLOOR_H + oy, fx0 = xAt(f), fx1 = fx0 + widthAt(f);
+      for (let c = 0; c < cols; c++) {
+        const x = b.x + c * winW + ox; if (x < fx0 + 4 || x + wW > fx1 - 4) continue;
+        const h = hash2(b.id * 97 + c, f), on = h < pal.glow || (isPlayerFloor && f === PLAYER_FLOOR - 1 && c === 3), dim = !on && h < pal.glow + .08;
+        // frame / recess
+        if (detail > 5) { ctx.fillStyle = st === 'brick' ? 'rgba(0,0,0,.35)' : 'rgba(0,0,0,.25)'; ctx.fillRect(x - 1, y - 1, wW + 2, wH + 2); }
+        if (on) { const warm = hash2(c * 7, f * 3 + b.id); ctx.fillStyle = warm < .12 ? '#a9d8ff' : warm < .22 ? '#ffb3c6' : warm < .5 ? lit : '#ffe9c0'; ctx.globalAlpha = .8 + hash2(c, f) * .2; }
+        else if (dim) { ctx.fillStyle = lit; ctx.globalAlpha = .18; }
         else { ctx.fillStyle = win; ctx.globalAlpha = 1; }
-        ctx.fillRect(x, y, wW, wH);
-        if (on && detail > 12 && hash2(f, c + b.id * 3) < .35) { ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(x, y, wW, wH * (.3 + hash2(c, f) * .4)); } // blinds
-        if (on && detail > 24 && hash2(f + 9, c + b.id) < .18) { ctx.fillStyle = '#2a2230'; ctx.beginPath(); ctx.arc(x + wW * (.3 + hash2(c, f + 1) * .4), y + wH * .55, wH * .16, 0, TAU); ctx.fill(); ctx.fillRect(x + wW * (.3 + hash2(c, f + 1) * .4) - wH * .18, y + wH * .68, wH * .36, wH * .4); } // someone in the window
+        ctx.fillRect(x, y, wW, wH); ctx.globalAlpha = 1;
+        if (on && detail > 9) drawRoom(ctx, x, y, wW, wH, hash2(f + 9, c + b.id * 3), hash2(c, f + 1), t);
+        // mullions and sills
+        if (detail > 7) { ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(x + wW * .5 - .5, y, 1, wH); if (st !== 'glass') ctx.fillRect(x, y + wH * .5 - .5, wW, 1); if (st === 'glass') { ctx.fillRect(x + wW * .25 - .5, y, 1, wH); ctx.fillRect(x + wW * .75 - .5, y, 1, wH); } }
+        if (detail > 10 && (st === 'brick' || st === 'stone' || st === 'tan')) { ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(x - 2, y + wH, wW + 4, 2); }
+        if (!on && detail > 12 && hash2(c + 5, f * 2 + b.id) < .3) { ctx.fillStyle = 'rgba(255,255,255,.05)'; ctx.fillRect(x, y, wW, wH * .3); } // dark glass reflection
       }
     }
-    ctx.globalAlpha = 1;
-    if (b.style === 'glass' && detail > 6) { ctx.fillStyle = 'rgba(255,255,255,.04)'; for (let c = 1; c < b.cols; c += 2) ctx.fillRect(b.x + c * winW, -b.h, winW, b.h); }
+    // fire escape
+    if (b.escape && detail > 5) { const ex = b.x + b.w * .18; ctx.fillStyle = 'rgba(20,20,30,.9)'; for (let f = 1; f < b.floors; f++) { const y = -f * FLOOR_H; ctx.fillRect(ex - 22, y - 3, 44, 3); ctx.fillRect(ex - 22, y - 30, 2, 30); ctx.fillRect(ex + 20, y - 30, 2, 30); ctx.fillRect(ex - 22, y - 30, 44, 1.5); ctx.save(); ctx.translate(ex + 4, y); ctx.rotate(-1.0); ctx.fillRect(0, -2, FLOOR_H * 1.1, 2); ctx.restore(); } }
+    // glass towers: faint vertical mullion lines
+    if (st === 'glass' && detail > 4) { ctx.fillStyle = 'rgba(255,255,255,.05)'; for (let c = 0; c <= cols; c++) ctx.fillRect(b.x + c * winW - .5, -b.h, 1, b.h); }
   }
-  // right-edge shade for paper depth
   ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.fillRect(b.x + b.w - Math.min(16, b.w * .06), -b.h, Math.min(16, b.w * .06), b.h);
+  if (b.setback) { const sx = xAt(b.setback.at), sw = widthAt(b.setback.at); ctx.fillRect(sx + sw - Math.min(12, sw * .06), -b.h, Math.min(12, sw * .06), (b.floors - b.setback.at) * FLOOR_H); ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(b.x, -b.setback.at * FLOOR_H, b.w, 5); }
   if (zoom > .06) {
+    const rx = xAt(b.floors - 1), rw = widthAt(b.floors - 1);
     ctx.fillStyle = shade(base, .7);
-    if (b.roof === 'tank') { ctx.fillRect(b.x + b.w * .6, -b.h - 60, 36, 60); ctx.beginPath(); ctx.moveTo(b.x + b.w * .6 - 2, -b.h - 60); ctx.lineTo(b.x + b.w * .6 + 18, -b.h - 78); ctx.lineTo(b.x + b.w * .6 + 38, -b.h - 60); ctx.fill(); }
-    if (b.roof === 'ac') for (let i = 0; i < 3; i++) ctx.fillRect(b.x + 20 + i * 44, -b.h - 18, 30, 18);
-    if (b.roof === 'antenna' || b.tower) { ctx.fillRect(b.x + b.w * .5 - 2, -b.h - (b.tower ? 260 : 70), 4, b.tower ? 260 : 70); const bl = (Math.sin((typeof Game !== 'undefined' ? Game.clock : 0) * 40) > 0); ctx.fillStyle = bl ? '#ff3a3a' : '#5a1a1a'; ctx.beginPath(); ctx.arc(b.x + b.w * .5, -b.h - (b.tower ? 262 : 72), b.tower ? 7 : 4, 0, TAU); ctx.fill(); if (bl && b.tower) { ctx.globalAlpha = .2; ctx.beginPath(); ctx.arc(b.x + b.w * .5, -b.h - 262, 40, 0, TAU); ctx.fill(); ctx.globalAlpha = 1; } }
-    ctx.fillStyle = shade(base, .8); ctx.fillRect(b.x - 4, -b.h - 6, b.w + 8, 8);
+    if (b.roof === 'tank') { ctx.fillRect(rx + rw * .6, -b.h - 60, 36, 60); ctx.beginPath(); ctx.moveTo(rx + rw * .6 - 2, -b.h - 60); ctx.lineTo(rx + rw * .6 + 18, -b.h - 78); ctx.lineTo(rx + rw * .6 + 38, -b.h - 60); ctx.fill(); }
+    if (b.roof === 'ac') for (let i = 0; i < 3; i++) ctx.fillRect(rx + 20 + i * 44, -b.h - 18, 30, 18);
+    if (b.roof === 'antenna' || b.tower) { const ah = b.tower ? 260 : 70; ctx.fillRect(rx + rw * .5 - 2, -b.h - ah, 4, ah); const bl = Math.sin(t * .8 + b.id) > 0; ctx.fillStyle = bl ? '#ff3a3a' : '#5a1a1a'; ctx.beginPath(); ctx.arc(rx + rw * .5, -b.h - ah - 2, b.tower ? 7 : 4, 0, TAU); ctx.fill(); if (bl && b.tower) { ctx.globalAlpha = .2; ctx.beginPath(); ctx.arc(rx + rw * .5, -b.h - 262, 40, 0, TAU); ctx.fill(); ctx.globalAlpha = 1; } }
+    ctx.fillStyle = shade(base, .8); ctx.fillRect(rx - 4, -b.h - 6, rw + 8, 8);
+    if (b.setback) ctx.fillRect(b.x - 4, -b.setback.at * FLOOR_H - 6, b.w + 8, 8);
   }
   if (zoom > .1) drawGroundFloor(ctx, b, pal, zoom, base, win);
 }
