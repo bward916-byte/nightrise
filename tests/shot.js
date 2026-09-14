@@ -1,0 +1,14 @@
+const fs = require('fs'); const { load } = require('./harness');
+const { G, ctx, canvas, C, I } = load(1200, 700);
+const step = n => { for (let i = 0; i < n; i++) G.update(1 / 60); };
+const act = () => { I.pressed.KeyE = true; G.update(1 / 60); step(60); };
+const save = name => { G.draw(); fs.writeFileSync('shots/' + name + '.png', canvas.toBuffer('image/png')); };
+step(480);
+G.player.x = G.cartMan.x - 90; G.player.setEmote('shrug', 9); C.snapTo(G.player.x, G.player.y - 700*.22/1.4, 1.4); C.tzoom = 1.4; step(30); save('street');
+C.setStop(2); step(120); save('block');
+G.player.x = ctx.TOWER.x + ctx.TOWER.w / 2; step(2); act(); step(30); save('lobby');
+G.player.x = 1010; step(2); act(); save('elevator');
+ctx.ElevatorScene.pick(G, 83); step(120); save('ride'); step(300); step(30); save('hall');
+G.player.x = 720; step(2); act(); G.player.x = 500; step(40); save('apartment');
+G.player.x = 950; step(2); act(); step(60 * 3.2); save('balcony_reveal'); step(60 * 5); save('balcony');
+console.log('shots done');
