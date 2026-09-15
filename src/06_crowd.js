@@ -3,12 +3,13 @@ class Crowd {
   constructor(city, count) {
     this.city = city; this.npcs = []; this.cars = [];
     const r = RNG(777 + (city.id ? city.id.length * 31 + city.i * 17 + (city.dir === 'ns' ? 400 : 0) : 0)), x0 = city.x0 - 300, x1 = city.x1 + 300;
-    for (let i = 0; i < (count || 180); i++) {
+    const N = count || (city.ch ? city.ch.crowd : 180);
+    for (let i = 0; i < N; i++) {
       const a = new Actor(genCharacter(1000 + i + (city.dir === 'ns' ? 5000 : 0) + (city.i || 0) * 300));
       a.x = r.range(x0, x1); a.y = GROUND + r.range(6, WALK_DEPTH); a.facing = r.chance(.5) ? 1 : -1; a.dir = a.facing;
       a.wait = r.range(0, 3); a.spec.walkSpeed *= 1.35; this.npcs.push(a);
     }
-    for (let i = 0; i < 26; i++) this.cars.push(new Car(i % 2, r.range(x0, x1), 500 + i + (city.i || 0) * 90 + (city.dir === 'ns' ? 1000 : 0)));
+    for (let i = 0; i < (city.ch ? city.ch.cars : 26); i++) this.cars.push(new Car(i % 2, r.range(x0, x1), 500 + i + (city.i || 0) * 90 + (city.dir === 'ns' ? 1000 : 0)));
   }
   update(dt, player, bounds) {
     const c = this.city, x0 = c.x0 - 300, x1 = c.x1 + 300;
