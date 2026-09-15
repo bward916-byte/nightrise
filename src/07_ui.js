@@ -38,7 +38,7 @@ const UI = {
     if (this.panelOpen) { const px = 12, py = H - 62 - 10 - (mobile ? 2 : 1) * 46, cols = mobile ? 5 : 10, bw = mobile ? 56 : 62; EMOTES.forEach((e, i) => { const r = Math.floor(i / cols), c = i % cols; this.button(ctx, 'emote:' + e.name, px + c * (bw + 5), py + r * 46, bw, 40, e.label, true); }); }
     if (turning) { ctx.restore(); return; }
     if (this.hintT > 0 && this.hint) { ctx.globalAlpha = Math.min(1, this.hintT * 2); ctx.font = `15px ${FONT}`; const w = Math.min(W - 24, ctx.measureText(this.hint).width + 28); this.panel(ctx, W / 2 - w / 2, 62, w, 34, 17); ctx.fillStyle = '#1c1a24'; ctx.textAlign = 'center'; ctx.fillText(this.hint, W / 2, 79, w - 20); ctx.globalAlpha = 1; }
-    if (this.toast) { ctx.font = `14px ${FONT}`; const w = ctx.measureText(this.toast.t).width + 28; this.panel(ctx, W / 2 - w / 2, H - 120, w, 32, 16, '#ffe6a8'); ctx.fillStyle = '#1c1a24'; ctx.textAlign = 'center'; ctx.fillText(this.toast.t, W / 2, H - 104); }
+    if (this.toast) { ctx.font = `14px ${FONT}`; const w = Math.min(W - 40, ctx.measureText(this.toast.t).width + 28), ty = iy - 46; this.panel(ctx, W / 2 - w / 2, ty, w, 32, 16, '#ffe6a8'); ctx.fillStyle = '#1c1a24'; ctx.textAlign = 'center'; ctx.fillText(this.toast.t, W / 2, ty + 16, w - 16); }
     ctx.restore();
   },
   title(ctx, text, sub, alpha) {
