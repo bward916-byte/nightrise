@@ -152,7 +152,7 @@ class Actor {
   draw(ctx, zoom) {
     const s = this.spec;
     const lie = this.pose.lie || 0;
-    if (lie > .02) { ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(lie * Math.PI / 2); ctx.scale(1, 1); this.drawBody(ctx); ctx.restore(); return; }
+    if (lie > .02) { ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(-lie * Math.PI / 2); ctx.scale(this.facing, 1); this.drawBody(ctx); ctx.restore(); return; }
     const dep = this.depth || 0;
     if (dep > 0) { ctx.save(); ctx.translate(this.x, this.y - dep * 210); const k = 1 - dep * .72; ctx.scale(this.facing * k, k); ctx.globalAlpha = 1 - dep * .25; this.drawBody(ctx); ctx.restore(); if (this.speech) this.drawSpeech(ctx, zoom); return; }
     if (typeof Lights !== 'undefined') Lights.groundShadow(ctx, this.x, this.y, this.h, this.h * .38);
