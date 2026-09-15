@@ -4,8 +4,19 @@ const { G, ctx, canvas, C, I } = load(900, 600);
 const step = n => { for (let i = 0; i < n; i++) { G.update(1 / 60); } };
 const act = () => { I.pressed.KeyE = true; G.update(1 / 60); };
 const settle = () => step(60);
-step(480); assert(G.state === 'play', 'intro ends'); G.draw();
+step(40); G.draw(); assert(G.scene.name === 'apartment', 'starts at home'); assert(G.player.pose.lie > .3 || G.player.emote, 'in bed');
+step(520); assert(G.state === 'play', 'intro ends'); G.draw();
+// stairwell
+G.player.x = 60; G.update(1/60); act(); settle(); assert(G.scene.name === 'hall', G.scene.name);
+G.player.x = 1400; G.update(1/60); assert(ctx.UI.prompt === 'Stairwell', ctx.UI.prompt); act(); settle(); assert(G.scene.name === 'stairs'); G.draw();
+{ const f0 = G.floor; G.player.x = 560; G.update(1/60); assert(ctx.UI.prompt === 'Up one floor', ctx.UI.prompt); act(); step(200); assert(G.floor === f0 + 1, 'climbed a floor'); G.draw();
+  G.player.x = 70; G.update(1/60); act(); step(180); assert(G.floor === f0, 'back down'); }
+G.player.x = 300; G.update(1/60); act(); settle(); assert(G.scene.name === 'hall', 'out of the stairwell: ' + G.scene.name);
+G.player.x = 720; G.update(1/60); act(); settle(); assert(G.scene.name === 'apartment');
+G.player.x = 60; G.update(1/60); act(); settle(); G.player.x = 100; G.update(1/60); act(); settle(); ctx.ElevatorScene.pick(G, 0); step(400); assert(G.scene.name === 'lobby', G.scene.name);
+G.player.x = 60; G.update(1/60); act(); settle(); assert(G.scene.name === 'street', G.scene.name); step(60);
 // crowd walks
+if (!G.city) G.setStreet(ctx.City.home());
 const xs = G.city.crowd.npcs.slice(0, 8).map(a => a.x); step(120); assert(G.city.crowd.npcs.slice(0, 8).some((a, i) => Math.abs(a.x - xs[i]) > 30), 'npcs move');
 // player walks fast
 const px = G.player.x; I.keys.KeyD = true; step(60); I.keys.KeyD = false; assert(G.player.x - px > 80, 'fast walk: ' + (G.player.x - px));
@@ -16,8 +27,8 @@ G.player.x = 1010; G.update(1/60); assert(ctx.UI.prompt === 'Call elevator'); ac
 ctx.ElevatorScene.pick(G, 83); step(60 * 7); assert(G.scene.name === 'hall', 'arrived hall, is ' + G.scene.name); assert(G.floor === 83); G.draw();
 // home
 G.player.x = 720; G.update(1/60); assert(ctx.UI.prompt === 'Go home', ctx.UI.prompt); act(); settle(); assert(G.scene.name === 'apartment'); G.draw();
-G.player.x = 640; G.update(1/60); const c0 = G.cash; act(); assert(G.cash === c0 + 40 && G.inv[0], 'wallet'); 
-G.player.x = 950; G.update(1/60); act(); settle(); assert(G.scene.name === 'balcony'); step(60 * 9); G.draw(); assert(G.flags.balconyReveal);
+G.player.x = 1090; G.update(1/60); assert(ctx.UI.prompt === 'Take wallet', ctx.UI.prompt); const c0 = G.cash; act(); assert(G.cash === c0 + 40, 'wallet');
+G.player.x = 1450; G.update(1/60); act(); settle(); assert(G.scene.name === 'balcony', G.scene.name); step(60 * 9); G.draw(); assert(G.flags.balconyReveal);
 // back in, elevator to roof and lobby
 G.player.x = ctx.SCENES.balcony.x0 + 20; G.update(1/60); act(); settle(); assert(G.scene.name === 'apartment');
 G.player.x = 60; G.update(1/60); act(); settle(); assert(G.scene.name === 'hall'); G.player.x = 100; G.update(1/60); act(); settle(); ctx.ElevatorScene.pick(G, 99); step(60 * 7); assert(G.scene.name === 'roof', G.scene.name); G.draw();
