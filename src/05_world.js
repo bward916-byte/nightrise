@@ -21,6 +21,17 @@ function hash2(a, b) { let h = Math.imul((a | 0) ^ 0x9e3779b9, 0x85ebca6b) ^ Mat
 const BLOCK = 1500, GAP = 220;                       // intersection gap in the facades
 const EW_NAMES = ['1st Street', 'Main Street', '3rd Street', 'Canal Street'];
 const NS_NAMES = ['Ave A', 'Ave B', 'Park Ave', 'Ave D'];
+// every street has its own character so no two blocks read the same
+const CHARACTER = {
+  ew0: { feature: 'finance',   crowd: 70,  cars: 30, neon: .15, grade: '#0e1a34', lamps: 380, trees: 0,  shops: ['BANK', 'OFFICES', 'COFFEE', 'CLOSED', 'DELI', 'SUITS'] },
+  ew1: { feature: 'downtown',  crowd: 190, cars: 26, neon: .8,  grade: '#241a2e', lamps: 420, trees: .2, shops: ['NOODLES', 'BAR', 'LIQUOR', 'PIZZA', 'DELI', 'PHARMACY', 'OPEN 24H', 'BOOKS'] },
+  ew2: { feature: 'theater',   crowd: 150, cars: 18, neon: 1,   grade: '#2e1830', lamps: 300, trees: .1, shops: ['THEATER', 'TICKETS', 'JAZZ', 'CABARET', 'DINER', 'HOTEL'] },
+  ew3: { feature: 'industrial',crowd: 40,  cars: 10, neon: .2,  grade: '#101a1c', lamps: 620, trees: 0,  shops: ['LOADING', 'GARAGE', 'SUPPLY', 'CLOSED', 'PAWN'] },
+  ns0: { feature: 'market',    crowd: 160, cars: 12, neon: .6,  grade: '#2a2216', lamps: 340, trees: .1, shops: ['FRUIT', 'FISH', 'SPICES', 'BAKERY', 'TEA', 'GROCER'] },
+  ns1: { feature: 'quiet',     crowd: 55,  cars: 14, neon: .25, grade: '#141c2e', lamps: 460, trees: .6, shops: ['LAUNDRY', 'BOOKS', 'CAFE', 'CLOSED', 'TAILOR'] },
+  ns2: { feature: 'nightlife', crowd: 210, cars: 22, neon: 1,   grade: '#2c1430', lamps: 320, trees: 0,  shops: ['CLUB', 'BAR', 'TATTOO', 'RECORDS', 'TOO', 'KARAOKE', 'BAR'] },
+  ns3: { feature: 'construction', crowd: 65, cars: 16, neon: .3, grade: '#1e1a12', lamps: 520, trees: .2, shops: ['HARDWARE', 'CLOSED', 'DINER', 'SUPPLY'] },
+};
 const HOME = { dir: 'ew', i: 1 };                    // the tower is on Main Street
 const DISTRICT = {                                   // style bias by position in the grid
   finance: ['glass', 'glass', 'dark', 'concrete'], old: ['brick', 'brick', 'stone', 'tan'], mixed: ['brick', 'concrete', 'tan', 'stone', 'glass'], strip: ['dark', 'brick', 'tan', 'concrete'],
@@ -34,6 +45,7 @@ const City = {
 };
 function buildStreet(dir, i) {
   const seed = (dir === 'ew' ? 100 : 500) + i * 37, r = RNG(seed), B = [];
+  const ch = CHARACTER[dir + i];
   const isHome = dir === HOME.dir && i === HOME.i;
   const n = 4, x0 = 0, x1 = n * BLOCK;              // four intersections along every street
   const district = dir === 'ew' ? (i === 0 ? 'finance' : i === 3 ? 'old' : 'mixed') : (i === 2 ? 'strip' : i === 3 ? 'old' : 'mixed');
@@ -55,10 +67,10 @@ function buildStreet(dir, i) {
   while (bx < x1 + 14000) { const w = r.int(140, 520), f = r.int(8, 70); back.push({ x: bx, w, h: f * FLOOR_H, style: r.pick(['dark', 'glass', 'concrete']), cols: Math.round(w / 70) }); bx += w + r.int(20, 120); }
   // street furniture picks: puddles, pigeons, parked cars, subway entrance
   const puddles = []; for (let k = 0; k < 14; k++) puddles.push({ x: r.range(x0, x1), w: r.range(40, 120), col: r.pick(NEON) });
-  const pigeons = []; for (let k = 0; k < 6; k++) { const px = r.range(x0, x1), home = px; for (let m = 0; m < r.int(4, 9); m++) pigeons.push({ x: px + r.range(-45, 45), y: GROUND + r.range(6, WALK_DEPTH), home, fly: 0, vx: 0, vy: 0, ph: r() * 10, st: 'peck', t: r.range(0, 3), hop: 0, face: r.chance(.5) ? 1 : -1, sz: r.range(.85, 1.15), col: r.weighted([['#8a8e9a', 5], ['#6e7280', 3], ['#a8a49a', 2], ['#5a5e6a', 2], ['#b8b4aa', 1]]), perch: null, land: 0 }); }
-  const parked = []; for (let k = 0; k < 10; k++) parked.push({ x: r.range(x0, x1), col: r.pick(CAR_COL), kind: r.pick(['sedan', 'sedan', 'suv', 'van']) });
+  const pigeons = []; for (let k = 0; k < (ch.feature === 'market' ? 10 : ch.feature === 'industrial' ? 3 : 6); k++) { const px = r.range(x0, x1), home = px; for (let m = 0; m < r.int(4, 9); m++) pigeons.push({ x: px + r.range(-45, 45), y: GROUND + r.range(6, WALK_DEPTH), home, fly: 0, vx: 0, vy: 0, ph: r() * 10, st: 'peck', t: r.range(0, 3), hop: 0, face: r.chance(.5) ? 1 : -1, sz: r.range(.85, 1.15), col: r.weighted([['#8a8e9a', 5], ['#6e7280', 3], ['#a8a49a', 2], ['#5a5e6a', 2], ['#b8b4aa', 1]]), perch: null, land: 0 }); }
+  const parked = []; for (let k = 0; k < Math.round(ch.cars * .4); k++) parked.push({ x: r.range(x0, x1), col: r.pick(CAR_COL), kind: r.pick(['sedan', 'sedan', 'suv', 'van']) });
   const subway = r.chance(.5) ? r.range(x0 + 300, x1 - 300) : null;
-  return { dir, i, id: City.id(dir, i), name: City.name(dir, i), buildings: B, alley, back, x0, x1, inters, isHome, district, puddles, pigeons, parked, subway, taxiX: isHome ? TOWER.x - 520 : null, crowd: null };
+  return { dir, i, id: City.id(dir, i), name: City.name(dir, i), buildings: B, alley, back, x0, x1, inters, isHome, district, puddles, pigeons, parked, subway, taxiX: isHome ? TOWER.x - 520 : null, crowd: null, ch, feature: ch.feature, grade: ch.grade };
 }
 function buildCity() { return City.home(); }
 // traffic light phase: 0..1 over a 24s cycle. ew green [0,.4), yellow [.4,.5), ns green [.5,.9), yellow [.9,1)
@@ -262,13 +274,14 @@ function drawGroundFloor(ctx, b, pal, zoom, base, win) {
   } else {
     const n = Math.max(1, Math.round(b.w / 200)), sw = b.w / n;
     for (let i = 0; i < n; i++) {
-      const x = b.x + i * sw, k = hash2(b.id, i), neon = NEON[Math.floor(k * NEON.length)], open = k < .7;
+      const CH = (typeof Game !== 'undefined' && Game.city && Game.city.ch) ? Game.city.ch : null;
+      const x = b.x + i * sw, k = hash2(b.id, i), neon = NEON[Math.floor(k * NEON.length)], open = k < (CH ? .35 + CH.neon * .45 : .7);
       ctx.fillStyle = open ? 'rgba(255,220,160,.55)' : '#151a2a'; ctx.fillRect(x + 14, -gh + 40, sw * .55, gh - 54);
       ctx.fillStyle = open ? '#4a3a2a' : '#0e1120'; ctx.fillRect(x + sw * .72, -FLOOR_H * .85, 40, FLOOR_H * .85);
       // neon sign
-      const name = SHOP_NAMES[Math.floor(hash2(i + 3, b.id) * SHOP_NAMES.length)];
+      const pool = CH ? CH.shops : SHOP_NAMES; const name = pool[Math.floor(hash2(i + 3, b.id) * pool.length)];
       ctx.font = `bold 13px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      const flick = hash2(i, b.id + 1) < .15 && Math.sin((typeof Game !== 'undefined' ? Game.clock : 0) * 700 + i) > .9;
+      const flick = (hash2(i, b.id + 1) < .15 && Math.sin((typeof Game !== 'undefined' ? Game.clock : 0) * 700 + i) > .9) || (CH && hash2(i + 7, b.id) > .25 + CH.neon * .75);
       if (!flick) { ctx.shadowColor = neon; ctx.shadowBlur = zoom > .5 ? 12 : 0; ctx.fillStyle = neon; ctx.fillText(name, x + sw * .42, -gh + 22); ctx.shadowBlur = 0; ctx.globalAlpha = .12; ctx.fillRect(x + 6, -gh + 8, sw * .72, 30); ctx.globalAlpha = 1; }
       if (open) { ctx.fillStyle = 'rgba(255,220,160,.09)'; ctx.beginPath(); ctx.moveTo(x + 14, 0); ctx.lineTo(x + 14 + sw * .55, 0); ctx.lineTo(x + 14 + sw * .55 + 40, 54); ctx.lineTo(x - 26, 54); ctx.fill(); Lights.add(x + 14 + sw * .28, -gh * .5, 150, LC.warm, .6); Lights.caster(x + 14 + sw * .28, 14, 150, .6); }
       if (!flick) Lights.add(x + sw * .42, -gh + 22, 105, neon === '#33e9ff' ? LC.neonCyan : neon === '#ff4fb8' ? LC.neonPink : LC.sign, .5);
@@ -294,14 +307,15 @@ function drawStreet(ctx, city, pal, zoom, cam) {
   ctx.fillStyle = '#c9b45a'; for (let x = Math.floor(x0 / 70) * 70; x < x1; x += 70) ctx.fillRect(x, ROAD_Y + ROAD_H / 2 - 1.5, 40, 3);
   ctx.fillStyle = '#2f3246'; ctx.fillRect(x0, ROAD_Y + ROAD_H, x1 - x0, 30);
   ctx.fillStyle = '#0a0c16'; ctx.fillRect(x0, ROAD_Y + ROAD_H + 30, x1 - x0, 40000);
-  if (zoom > .18) for (let x = Math.floor(x0 / 420) * 420; x < x1; x += 420) {
+  const CH = city.ch || { lamps: 420, trees: .2 };
+  if (zoom > .18) for (let x = Math.floor(x0 / CH.lamps) * CH.lamps; x < x1; x += CH.lamps) {
     const k = hash2(x, 1);
     if (k < .5) {
       ctx.fillStyle = '#12141f'; ctx.fillRect(x - 2, -150, 4, ROAD_Y + 146); ctx.fillRect(x - 2, -152, 30, 4);
       const flick = hash2(x, 4) < .12 && Math.sin((typeof Game !== 'undefined' ? Game.clock : 0) * 900 + x) > .6; if (flick) { ctx.fillStyle = '#5a5a4a'; ctx.beginPath(); ctx.ellipse(x + 30, -150, 12, 6, 0, 0, TAU); ctx.fill(); continue; }
       ctx.fillStyle = '#ffe9a8'; ctx.beginPath(); ctx.ellipse(x + 30, -150, 12, 6, 0, 0, TAU); ctx.fill();
       const g = ctx.createRadialGradient(x + 30, -150, 10, x + 30, -150, 260); g.addColorStop(0, 'rgba(255,225,160,.22)'); g.addColorStop(1, 'rgba(255,225,160,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(x + 30, -150); ctx.lineTo(x - 120, 60); ctx.lineTo(x + 180, 60); ctx.fill();
-    } else if (k < .7) {
+    } else if (k < .5 + CH.trees * .5) {
       ctx.fillStyle = '#1e1a2a'; ctx.fillRect(x - 4, -70, 8, ROAD_Y + 64);
       ctx.fillStyle = '#1c3a3a'; ctx.beginPath(); ctx.arc(x, -100, 34, 0, TAU); ctx.arc(x - 22, -80, 24, 0, TAU); ctx.arc(x + 24, -84, 26, 0, TAU); ctx.fill();
     } else if (k < .82) { ctx.fillStyle = '#8a2f2c'; ctx.beginPath(); ctx.roundRect(x - 6, ROAD_Y - 30, 12, 26, 3); ctx.fill(); ctx.fillRect(x - 10, ROAD_Y - 18, 20, 5); }
@@ -350,8 +364,46 @@ function drawStreet(ctx, city, pal, zoom, cam) {
       ctx.restore();
     }
   }
+  drawStreetFeature(ctx, city, zoom, x0, x1);
+  // colour grade so each street has its own cast
+  if (city.grade) { ctx.save(); ctx.globalCompositeOperation = 'multiply'; ctx.globalAlpha = .3; ctx.fillStyle = mix(city.grade, '#ffffff', .45); ctx.fillRect(x0, -9000, x1 - x0, 20000); ctx.restore(); }
   // steam from a manhole
   if (zoom > .3) { const t = (typeof Game !== 'undefined' ? Game.clock : 0) * 60; for (let x = Math.floor(x0 / 1300) * 1300 + 500; x < x1; x += 1300) { ctx.fillStyle = 'rgba(200,200,230,.08)'; for (let i = 0; i < 5; i++) { const ph = (t * .3 + i * 20) % 100; ctx.beginPath(); ctx.arc(x + Math.sin(ph * .1 + i) * 10, ROAD_Y + 40 - ph, 12 + ph * .3, 0, TAU); ctx.fill(); } } }
+}
+function drawStreetFeature(ctx, city, zoom, x0, x1) {
+  if (zoom < .12) return; const f = city.feature, T = typeof Game !== 'undefined' ? Game.clock * 50 : 0;
+  const every = (step, fn) => { for (let x = Math.floor(x0 / step) * step; x < x1; x += step) { if (city.inters.some(it => Math.abs(it.x - x) < GAP)) continue; fn(x); } };
+  if (f === 'construction') {
+    every(700, x => { ctx.fillStyle = '#e07a20'; for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.moveTo(x + i * 30 - 7, ROAD_Y - 4); ctx.lineTo(x + i * 30 + 7, ROAD_Y - 4); ctx.lineTo(x + i * 30 + 4, ROAD_Y - 26); ctx.lineTo(x + i * 30 - 4, ROAD_Y - 26); ctx.fill(); ctx.fillStyle = '#f2f2f2'; ctx.fillRect(x + i * 30 - 5, ROAD_Y - 18, 10, 4); ctx.fillStyle = '#e07a20'; }
+      ctx.fillStyle = '#d9b23a'; ctx.fillRect(x - 20, -70, 6, 70); ctx.fillRect(x + 140, -70, 6, 70); ctx.fillStyle = 'rgba(217,178,58,.5)'; ctx.fillRect(x - 20, -62, 166, 6); ctx.fillStyle = '#2a2c3a'; ctx.fillRect(x + 30, -46, 80, 46); ctx.fillStyle = '#4a4e5c'; ctx.fillRect(x + 30, -52, 80, 8);
+      const blink = Math.floor(T * 2) % 2 === 0; ctx.fillStyle = blink ? '#ff8a2a' : '#5a3a1a'; ctx.beginPath(); ctx.arc(x - 17, -76, 5, 0, TAU); ctx.fill(); if (blink && typeof Lights !== 'undefined') Lights.add(x - 17, -76, 90, '255,138,42', .5); });
+  } else if (f === 'market') {
+    every(430, x => { const c = ['#b0413e', '#3e8a5b', '#2f6f9f', '#d9b23a'][Math.floor(hash2(x, 2) * 4)];
+      ctx.fillStyle = c; ctx.beginPath(); ctx.moveTo(x - 60, -96); ctx.lineTo(x + 60, -96); ctx.lineTo(x + 52, -76); ctx.lineTo(x - 52, -76); ctx.fill();
+      ctx.fillStyle = '#3a3040'; ctx.fillRect(x - 54, -76, 4, 76); ctx.fillRect(x + 50, -76, 4, 76); ctx.fillStyle = '#5a4a3a'; ctx.fillRect(x - 56, -44, 112, 10);
+      for (let i = 0; i < 6; i++) { ctx.fillStyle = ['#d94a3a', '#e8b23a', '#5aa84a', '#c94a8a'][i % 4]; ctx.beginPath(); ctx.arc(x - 44 + i * 18, -50, 6, 0, TAU); ctx.fill(); }
+      ctx.fillStyle = '#ffe9a8'; ctx.beginPath(); ctx.arc(x, -90, 5, 0, TAU); ctx.fill(); if (typeof Lights !== 'undefined') Lights.add(x, -86, 150, LC.warm, .6); });
+  } else if (f === 'theater') {
+    every(900, x => { ctx.fillStyle = '#1a1420'; ctx.fillRect(x - 110, -150, 220, 54); ctx.fillStyle = '#f2d98a'; ctx.font = `bold 20px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('MAJESTIC', x, -124);
+      for (let i = 0; i < 16; i++) { const on = (Math.floor(T * 6) + i) % 4 !== 0; ctx.fillStyle = on ? '#ffe9a8' : '#4a4030'; ctx.beginPath(); ctx.arc(x - 104 + i * 14, -152, 3.5, 0, TAU); ctx.fill(); ctx.beginPath(); ctx.arc(x - 104 + i * 14, -94, 3.5, 0, TAU); ctx.fill(); }
+      if (typeof Lights !== 'undefined') Lights.add(x, -120, 300, LC.sign, .8);
+      ctx.fillStyle = '#7a1f2d'; ctx.fillRect(x - 70, -6, 140, 6); });
+  } else if (f === 'nightlife') {
+    every(760, x => { ctx.fillStyle = '#6a1f4a'; ctx.fillRect(x - 60, -8, 120, 8); ctx.fillStyle = '#2a2c3a'; ctx.fillRect(x - 64, -50, 5, 50); ctx.fillRect(x + 60, -50, 5, 50); ctx.fillStyle = '#c9a24a'; ctx.fillRect(x - 62, -44, 126, 3);
+      const hue = (T * 60 + x) % 360; ctx.fillStyle = `hsla(${hue},85%,60%,.3)`; ctx.beginPath(); ctx.moveTo(x, -170); ctx.lineTo(x - 90, 30); ctx.lineTo(x + 90, 30); ctx.fill();
+      if (typeof Lights !== 'undefined') Lights.add(x, -120, 220, '255,79,184', .55); });
+  } else if (f === 'industrial') {
+    every(820, x => { ctx.fillStyle = '#3a3a40'; ctx.fillRect(x - 70, -40, 140, 40); ctx.fillStyle = '#2a2a30'; ctx.fillRect(x - 70, -46, 140, 8);
+      ctx.fillStyle = '#1a1c24'; ctx.fillRect(x - 40, -90, 80, 44); ctx.fillStyle = '#d9b23a'; ctx.fillRect(x - 36, -86, 72, 5);
+      ctx.fillStyle = 'rgba(200,200,220,.1)'; for (let i = 0; i < 4; i++) { const ph = (T * .5 + i * .25) % 1; ctx.beginPath(); ctx.arc(x + 90, -20 - ph * 130, 14 + ph * 26, 0, TAU); ctx.fill(); } });
+  } else if (f === 'finance') {
+    every(560, x => { ctx.fillStyle = '#2a2f40'; ctx.fillRect(x - 46, -12, 92, 12); ctx.fillStyle = '#3a4152'; ctx.fillRect(x - 40, -22, 80, 10);
+      ctx.fillStyle = '#c9cdd8'; ctx.fillRect(x - 6, -70, 12, 58); ctx.beginPath(); ctx.arc(x, -76, 9, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#8a8e9a'; ctx.fillRect(x - 60, -4, 120, 4); });
+  } else if (f === 'quiet') {
+    every(500, x => { ctx.fillStyle = '#4a3320'; ctx.fillRect(x - 34, 6, 68, 7); ctx.fillRect(x - 34, -8, 68, 6); ctx.fillRect(x - 30, 13, 5, 14); ctx.fillRect(x + 25, 13, 5, 14);
+      ctx.fillStyle = '#2a4a3a'; ctx.beginPath(); ctx.arc(x + 70, -30, 18, 0, TAU); ctx.fill(); ctx.fillStyle = '#3a2a1a'; ctx.fillRect(x + 67, -30, 6, 30); });
+  }
 }
 function drawIntersection(ctx, city, it, zoom, pal) {
   const x = it.x, half = GAP / 2, t = typeof Game !== 'undefined' ? Game.clock : 0;
