@@ -7,10 +7,15 @@ const glow = (ctx, x, y, r, col, a) => { const g = ctx.createRadialGradient(x, y
 const WARM = 'rgba(255,225,160,A)';
 const WARM_L = '255,225,160';
 
-function roomBase(ctx, w, wall, floor, trim) {
-  cut(ctx, wall, -200, -FLOOR_H * 2.4, w + 400, FLOOR_H * 2.4);
-  cut(ctx, shade(wall, .8), -200, -FLOOR_H * 2.4, w + 400, FLOOR_H * .6);
-  cut(ctx, floor, -200, 0, w + 400, ROOM_DEPTH + 8);
+function roomBase(ctx, w, wall, floor, trim, opt) {
+  opt = opt || {};
+  const seed = opt.seed || (w * 31 + wall.length * 7);
+  Tex.paint(ctx, opt.wallTex || 'plaster', seed, wall, -200, -FLOOR_H * 2.4, w + 400, FLOOR_H * 2.4);
+  cut(ctx, shade(wall, .82), -200, -FLOOR_H * 2.4, w + 400, FLOOR_H * .6);
+  Tex.paint(ctx, opt.floorTex || 'wood', seed + 5, floor, -200, 0, w + 400, ROOM_DEPTH + 8);
+  // scuffs along the bottom of the wall and grime in the corners
+  Tex.streaks(ctx, -200, -FLOOR_H * 1.1, w + 400, FLOOR_H * .5, seed, .07);
+  const g = ctx.createLinearGradient(0, -80, 0, 0); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.18)'); ctx.fillStyle = g; ctx.fillRect(-200, -80, w + 400, 80);
   cut(ctx, trim || shade(wall, .7), -200, -10, w + 400, 10);
   cut(ctx, '#05060c', -200, ROOM_DEPTH + 8, w + 400, 4000);
 }
@@ -75,7 +80,7 @@ const LobbyScene = {
   draw(G, ctx, cam, pal) {
     ctx.fillStyle = '#0a0c18'; ctx.fillRect(0, 0, cam.w, cam.h);
     cam.begin(ctx); inkW(cam.zoom);
-    roomBase(ctx, this.w, '#2c2a3e', '#3b3548', '#1f1d2c');
+    roomBase(ctx, this.w, '#2c2a3e', '#3b3548', '#1f1d2c', { seed: 11, wallTex: 'plaster', floorTex: 'tile' });
     // marble floor pattern
     ctx.fillStyle = 'rgba(255,255,255,.05)'; for (let x = 0; x < this.w; x += 80) ctx.fillRect(x, 0, 40, ROOM_DEPTH + 8);
     // street door with night outside
@@ -180,7 +185,7 @@ const HallScene = {
   draw(G, ctx, cam, pal) {
     ctx.fillStyle = '#0a0c18'; ctx.fillRect(0, 0, cam.w, cam.h);
     cam.begin(ctx); inkW(cam.zoom);
-    roomBase(ctx, this.w, '#3e3a52', '#5a2f3a', '#2a2438');
+    roomBase(ctx, this.w, '#3e3a52', '#5a2f3a', '#2a2438', { seed: 23 + G.floor, wallTex: 'plaster', floorTex: 'tile' });
     ctx.fillStyle = 'rgba(0,0,0,.15)'; for (let x = 0; x < this.w; x += 60) ctx.fillRect(x, 0, 30, ROOM_DEPTH + 8);
     cut(ctx, '#2a2c3a', 60, -FLOOR_H, 48, FLOOR_H); cut(ctx, '#2a2c3a', 112, -FLOOR_H, 48, FLOOR_H); cut(ctx, '#b8a068', 108, -FLOOR_H, 6, FLOOR_H);
     ctx.fillStyle = '#ff9a3a'; ctx.font = `bold 12px ${FONT}`; ctx.textAlign = 'center'; ctx.fillText(G.elevatorFloorLabel(), 110, -FLOOR_H - 10);
@@ -221,7 +226,7 @@ const ApartmentScene = {
   draw(G, ctx, cam, pal) {
     ctx.fillStyle = '#0a0c18'; ctx.fillRect(0, 0, cam.w, cam.h);
     cam.begin(ctx); inkW(cam.zoom);
-    roomBase(ctx, this.w, '#453d55', '#6a4a36', '#2f2a3a');
+    roomBase(ctx, this.w, '#453d55', '#6a4a36', '#2f2a3a', { seed: 41, wallTex: 'plaster', floorTex: 'wood' });
     // floorboards + rug
     ctx.fillStyle = 'rgba(0,0,0,.12)'; for (let x = 0; x < this.w; x += 46) ctx.fillRect(x, 0, 2, ROOM_DEPTH + 8);
     cut(ctx, '#6a3a4a', 560, 2, 300, ROOM_DEPTH + 4); cut(ctx, '#7a4a5a', 580, 5, 260, ROOM_DEPTH - 2);
@@ -295,7 +300,7 @@ const StairScene = {
   draw(G, ctx, cam, pal) {
     ctx.fillStyle = '#07090f'; ctx.fillRect(0, 0, cam.w, cam.h);
     cam.begin(ctx); inkW(cam.zoom);
-    roomBase(ctx, this.w, '#2f3238', '#3a3d44', '#222429');
+    roomBase(ctx, this.w, '#2f3238', '#3a3d44', '#222429', { seed: 60 + G.floor, wallTex: 'concrete', floorTex: 'concrete' });
     ctx.fillStyle = 'rgba(0,0,0,.2)'; for (let x = 0; x < this.w; x += 50) ctx.fillRect(x, 0, 25, ROOM_DEPTH + 8);
     // flights going up on the right, down on the left
     const flight = (x0, dir) => { for (let i = 0; i < 7; i++) { const x = x0 + dir * i * 22, y = -i * 18; cut(ctx, '#4a4d55', x, y - 18, 22, 18); cut(ctx, '#3a3d44', x, y - 20, 22, 3); }
