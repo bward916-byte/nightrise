@@ -5,6 +5,7 @@ const cut = (ctx, col, x, y, w, h, r) => { ctx.fillStyle = col; ctx.beginPath();
 const shadowCut = (ctx, col, x, y, w, h, r) => { cut(ctx, 'rgba(0,0,0,.35)', x + 4, y + 5, w, h, r); cut(ctx, col, x, y, w, h, r); };
 const glow = (ctx, x, y, r, col, a) => { const g = ctx.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, col.replace('A', a || .35)); g.addColorStop(1, col.replace('A', 0)); ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2); };
 const WARM = 'rgba(255,225,160,A)';
+const WARM_L = '255,225,160';
 
 function roomBase(ctx, w, wall, floor, trim) {
   cut(ctx, wall, -200, -FLOOR_H * 2.4, w + 400, FLOOR_H * 2.4);
@@ -61,11 +62,12 @@ const StreetScene = {
 // ---------- LOBBY ----------
 const LobbyScene = {
   name: 'lobby', where: 'Lobby', w: 1200,
-  enter(G, from) { const p = G.player; p.y = 12; if (from === 'elevator') { p.x = 1010; p.facing = -1; } else { p.x = 90; p.facing = 1; } Camera.follow = p; Camera.locked = false; Camera.snapTo(p.x, -90, 1.6); Camera.tzoom = 1.6; },
+  enter(G, from) { const p = G.player; p.y = 12; p.depth = 0; if (from === 'elevator') { p.x = 1010; p.facing = -1; } else if (from === 'stairs') { p.x = 1150; p.facing = -1; } else { p.x = 90; p.facing = 1; } Camera.follow = p; Camera.locked = false; Camera.snapTo(p.x, -90, 1.6); Camera.tzoom = 1.6; },
   update(G, dt) {
     const p = G.player; G.movePlayer(dt, 30, this.w - 30, 4, ROOM_DEPTH);
     if (p.x < 110) G.setPrompt('Go outside', () => G.go('street', 'lobby'));
     else if (Math.abs(p.x - 1010) < 70) G.setPrompt('Call elevator', () => G.openElevator('lobby'));
+    else if (Math.abs(p.x - 1150) < 45) G.setPrompt('Stairwell', () => G.go('stairs', 'lobby'));
     else if (Math.abs(p.x - 560) < 60) G.setPrompt('Check mail', () => { if (!G.flags.mail) { G.flags.mail = true; G.give({ name: 'Letter', col: '#e8e0c8' }); UI.say('A letter. Rent is due.', 2.5); } else UI.say('Nothing else in the box.', 1.5); });
     else G.setPrompt(null);
     G.lobbyFolk.forEach(a => a.update(dt));
@@ -90,6 +92,7 @@ const LobbyScene = {
     cut(ctx, '#7a6a48', 940, -FLOOR_H * 1.05, 140, FLOOR_H * 1.05, 2);
     cut(ctx, '#2a2c3a', 950, -FLOOR_H, 58, FLOOR_H); cut(ctx, '#2a2c3a', 1012, -FLOOR_H, 58, FLOOR_H); cut(ctx, '#b8a068', 1006, -FLOOR_H, 8, FLOOR_H);
     ctx.fillStyle = '#ff9a3a'; ctx.font = `bold 12px ${FONT}`; ctx.fillText(G.elevatorFloorLabel(), 1010, -FLOOR_H - 10);
+    shadowCut(ctx, '#4a4038', 1120, -FLOOR_H * .92, 60, FLOOR_H * .92, 2); ctx.fillStyle = '#7fd48a'; ctx.font = `bold 10px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('STAIRS', 1150, -FLOOR_H * .98);
     cut(ctx, '#b8a068', 1086, -FLOOR_H * .55, 8, 14, 2); ctx.fillStyle = '#ffd36a'; ctx.beginPath(); ctx.arc(1090, -FLOOR_H * .5, 3, 0, TAU); ctx.fill();
     // ceiling lights
     for (let x = 120; x < this.w; x += 240) { cut(ctx, '#ffe6a8', x, -FLOOR_H * 1.75, 60, 6, 3); glow(ctx, x + 30, -FLOOR_H * 1.7, 160, WARM, .22); }
@@ -161,10 +164,11 @@ const ElevatorScene = {
 // ---------- HALLWAY ----------
 const HallScene = {
   name: 'hall', where: 'Hallway', w: 1500,
-  enter(G, from) { const p = G.player; p.y = 12; if (from === 'apartment') { p.x = 720; p.facing = -1; } else { p.x = 130; p.facing = 1; } this.where = 'Floor ' + G.floor; Camera.follow = p; Camera.locked = false; Camera.snapTo(p.x, -90, 1.6); Camera.tzoom = 1.6; },
+  enter(G, from) { const p = G.player; p.y = 12; p.depth = 0; if (from === 'apartment') { p.x = 720; p.facing = -1; } else if (from === 'stairs') { p.x = 1370; p.facing = -1; } else { p.x = 130; p.facing = 1; } this.where = 'Floor ' + G.floor; Camera.follow = p; Camera.locked = false; Camera.snapTo(p.x, -90, 1.6); Camera.tzoom = 1.6; },
   update(G, dt) {
     const p = G.player; G.movePlayer(dt, 30, this.w - 30, 4, ROOM_DEPTH);
     if (Math.abs(p.x - 100) < 60) G.setPrompt('Call elevator', () => G.openElevator('hall'));
+    else if (Math.abs(p.x - 1400) < 60) G.setPrompt('Stairwell', () => G.go('stairs', 'hall'));
     else {
       const d = this.doorAt(p.x);
       if (d !== null) { const mine = G.floor === PLAYER_FLOOR && d === 2; G.setPrompt(mine ? 'Go home' : 'Try door ' + this.num(G, d), () => { if (mine) G.go('apartment', 'hall'); else { UI.say('Locked.', 1); Camera.shake = .4; } }); }
@@ -181,8 +185,10 @@ const HallScene = {
     cut(ctx, '#2a2c3a', 60, -FLOOR_H, 48, FLOOR_H); cut(ctx, '#2a2c3a', 112, -FLOOR_H, 48, FLOOR_H); cut(ctx, '#b8a068', 108, -FLOOR_H, 6, FLOOR_H);
     ctx.fillStyle = '#ff9a3a'; ctx.font = `bold 12px ${FONT}`; ctx.textAlign = 'center'; ctx.fillText(G.elevatorFloorLabel(), 110, -FLOOR_H - 10);
     for (let i = 0; i < 6; i++) { const x = 280 + i * 220, mine = G.floor === PLAYER_FLOOR && i === 2; shadowCut(ctx, mine ? '#7a4a2a' : '#4a3a3a', x - 30, -FLOOR_H * .92, 60, FLOOR_H * .92, 2); cut(ctx, '#d8c070', x + 18, -FLOOR_H * .45, 5, 5, 2); cut(ctx, '#e8e0c8', x - 14, -FLOOR_H * .8, 28, 12, 2); ctx.fillStyle = '#1c1a24'; ctx.font = `bold 9px ${FONT}`; ctx.fillText(this.num(G, i), x, -FLOOR_H * .8 + 6); if (i % 2 === 0) { cut(ctx, '#ffe6a8', x + 100, -FLOOR_H * 1.1, 14, 18, 3); glow(ctx, x + 107, -FLOOR_H * 1.05, 90, WARM, .18); } }
-    // window at the end
-    cut(ctx, '#0d1226', this.w - 120, -FLOOR_H * 1.2, 90, FLOOR_H * 1.0); ctx.fillStyle = '#ffe2a0'; ctx.globalAlpha = .5; for (let i = 0; i < 14; i++) ctx.fillRect(this.w - 115 + hash2(i, 4) * 80, -FLOOR_H * 1.15 + hash2(i, 5) * 80, 3, 4); ctx.globalAlpha = 1;
+    // stairwell door at the end
+    shadowCut(ctx, '#4a4038', this.w - 130, -FLOOR_H * .92, 64, FLOOR_H * .92, 2); cut(ctx, '#d8c070', this.w - 76, -FLOOR_H * .45, 5, 5, 2); cut(ctx, '#20232a', this.w - 140, -FLOOR_H * 1.05, 84, 20, 2); ctx.fillStyle = '#7fd48a'; ctx.font = `bold 11px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('STAIRS', this.w - 98, -FLOOR_H * 1.05 + 10);
+    // window
+    cut(ctx, '#0d1226', this.w - 300, -FLOOR_H * 1.2, 90, FLOOR_H * 1.0); ctx.fillStyle = '#ffe2a0'; ctx.globalAlpha = .5; for (let i = 0; i < 14; i++) ctx.fillRect(this.w - 295 + hash2(i, 4) * 80, -FLOOR_H * 1.15 + hash2(i, 5) * 80, 3, 4); ctx.globalAlpha = 1;
     G.player.draw(ctx, cam.zoom);
     cam.end(ctx);
   },
@@ -190,42 +196,123 @@ const HallScene = {
 
 // ---------- APARTMENT ----------
 const ApartmentScene = {
-  name: 'apartment', where: 'Home · 8304', w: 1000,
-  enter(G, from) { const p = G.player; p.y = 12; if (from === 'balcony') { p.x = 920; p.facing = -1; } else { p.x = 70; p.facing = 1; } Camera.follow = p; Camera.locked = false; Camera.snapTo(p.x, -90, 1.6); Camera.tzoom = 1.6; },
+  name: 'apartment', where: 'Home · 8304', w: 1500, bed: 210,
+  enter(G, from) {
+    const p = G.player; p.y = 12; p.depth = 0;
+    if (from === 'balcony') { p.x = 1420; p.facing = -1; }
+    else if (from === 'wake') { p.x = this.bed; p.facing = 1; }
+    else { p.x = 90; p.facing = 1; }
+    Camera.follow = p; Camera.locked = false; Camera.snapTo(p.x, -90, 1.6); Camera.tzoom = 1.6;
+  },
   update(G, dt) {
     const p = G.player; G.movePlayer(dt, 30, this.w - 30, 4, ROOM_DEPTH);
+    const near = (x, r) => Math.abs(p.x - x) < (r || 50);
     if (p.x < 100) G.setPrompt('Leave', () => G.go('hall', 'apartment'));
-    else if (p.x > 900) G.setPrompt('Step onto balcony', () => G.go('balcony', 'apartment'));
-    else if (Math.abs(p.x - 640) < 50 && !G.flags.wallet) G.setPrompt('Take wallet', () => { G.flags.wallet = true; G.cash += 40; G.give({ name: 'Keys', col: '#d8c070' }); UI.say('$40 and your keys.', 2.5); });
-    else if (Math.abs(p.x - 300) < 50) G.setPrompt(G.flags.tv ? 'Turn off TV' : 'Turn on TV', () => { G.flags.tv = !G.flags.tv; });
-    else if (Math.abs(p.x - 180) < 40 && !G.flags.phone) G.setPrompt('Take phone', () => { G.flags.phone = true; G.give({ name: 'Phone', col: '#1c1a24' }); });
-    else if (Math.abs(p.x - 790) < 40) G.setPrompt('Open fridge', () => { if (!G.flags.fridge) { G.flags.fridge = true; G.give({ name: 'Pizza', col: '#d9a23a' }); UI.say('Cold pizza. Still good.', 2); } else UI.say('Empty now.', 1); });
+    else if (p.x > 1400) G.setPrompt('Step onto balcony', () => G.go('balcony', 'apartment'));
+    else if (near(this.bed, 70)) G.setPrompt(G.flags.madeBed ? 'Lie down' : 'Make the bed', () => { if (!G.flags.madeBed) { G.flags.madeBed = true; UI.say('Bed made. Small win.', 2); } else { p.setEmote('inBed', 3); UI.say('Five more minutes.', 2); } });
+    else if (near(330, 40) && !G.flags.clock) G.setPrompt('Silence the alarm', () => { G.flags.clock = true; UI.say('7:12pm. You slept through the day again.', 3); });
+    else if (near(470, 45) && !G.flags.phone) G.setPrompt('Take phone', () => { G.flags.phone = true; G.give({ name: 'Phone', col: '#1c1a24' }); });
+    else if (near(620, 60)) G.setPrompt(G.flags.tv ? 'Turn off TV' : 'Turn on TV', () => { G.flags.tv = !G.flags.tv; });
+    else if (near(880, 50)) G.setPrompt(G.flags.music ? 'Stop the record' : 'Put a record on', () => { G.flags.music = !G.flags.music; UI.say(G.flags.music ? 'Something slow.' : 'Quiet again.', 1.6); });
+    else if (near(1090, 50) && !G.flags.wallet) G.setPrompt('Take wallet', () => { G.flags.wallet = true; G.cash += 40; G.give({ name: 'Keys', col: '#d8c070' }); UI.say('$40 and your keys.', 2.5); });
+    else if (near(1230, 45)) G.setPrompt('Open fridge', () => { if (!G.flags.fridge) { G.flags.fridge = true; G.give({ name: 'Pizza', col: '#d9a23a' }); UI.say('Cold pizza. Still good.', 2); } else UI.say('Empty now.', 1.2); });
     else G.setPrompt(null);
   },
   draw(G, ctx, cam, pal) {
     ctx.fillStyle = '#0a0c18'; ctx.fillRect(0, 0, cam.w, cam.h);
     cam.begin(ctx); inkW(cam.zoom);
-    roomBase(ctx, this.w, '#4a4258', '#6a4a36', '#2f2a3a');
-    // big window with the city below
-    cut(ctx, '#0d1226', 380, -FLOOR_H * 1.35, 220, FLOOR_H * .95, 3); ctx.fillStyle = '#ffe2a0'; for (let i = 0; i < 60; i++) { ctx.globalAlpha = .3 + hash2(i, 9) * .6; ctx.fillRect(385 + hash2(i, 4) * 210, -FLOOR_H * 1.3 + hash2(i, 5) * 80 + hash2(i, 6) * 6, 2, 3); } ctx.globalAlpha = 1; cut(ctx, '#3a3448', 488, -FLOOR_H * 1.35, 4, FLOOR_H * .95);
-    // door
+    roomBase(ctx, this.w, '#453d55', '#6a4a36', '#2f2a3a');
+    // floorboards + rug
+    ctx.fillStyle = 'rgba(0,0,0,.12)'; for (let x = 0; x < this.w; x += 46) ctx.fillRect(x, 0, 2, ROOM_DEPTH + 8);
+    cut(ctx, '#6a3a4a', 560, 2, 300, ROOM_DEPTH + 4); cut(ctx, '#7a4a5a', 580, 5, 260, ROOM_DEPTH - 2);
+    // front door
     cut(ctx, '#5a3a2a', 40, -FLOOR_H * .92, 56, FLOOR_H * .92, 2); cut(ctx, '#d8c070', 84, -FLOOR_H * .45, 5, 5, 2);
-    // side table + phone
-    shadowCut(ctx, '#5a3f2a', 150, -34, 60, 34, 2); if (!G.flags.phone) cut(ctx, '#1c1a24', 172, -40, 12, 7, 2); cut(ctx, '#ffe6a8', 190, -70, 16, 12, 3); cut(ctx, '#6a5a3a', 197, -58, 3, 24); glow(ctx, 198, -64, 70, WARM, .25);
-    // couch
-    shadowCut(ctx, '#6a3a4a', 220, -40, 150, 40, 8); cut(ctx, '#7a4a5a', 220, -62, 150, 26, 8); cut(ctx, '#7a4a5a', 212, -50, 16, 50, 6); cut(ctx, '#7a4a5a', 362, -50, 16, 50, 6);
-    // TV on stand
-    shadowCut(ctx, '#3a3040', 240, -36 + 0, 0, 0); shadowCut(ctx, '#2a2436', 250, -FLOOR_H * .55, 110, 62, 3); cut(ctx, G.flags.tv ? '#6ab8ff' : '#0a0c14', 256, -FLOOR_H * .55 + 6, 98, 50); if (G.flags.tv) { glow(ctx, 305, -FLOOR_H * .55 + 30, 120, 'rgba(120,190,255,A)', .25); ctx.fillStyle = 'rgba(255,255,255,.25)'; ctx.fillRect(262 + (G.clock * 800) % 80, -FLOOR_H * .55 + 14, 30, 34); }
-    // shelf
-    cut(ctx, '#5a3f2a', 620, -FLOOR_H * 1.1, 8, FLOOR_H * .5); cut(ctx, '#5a3f2a', 628, -FLOOR_H * 1.1, 90, 6); cut(ctx, '#5a3f2a', 628, -FLOOR_H * .85, 90, 6); const bc = ['#b0413e', '#3e8a5b', '#2f6f9f', '#d9b23a', '#5a4a9f']; for (let i = 0; i < 8; i++) cut(ctx, bc[i % 5], 634 + i * 10, -FLOOR_H * 1.1 - 22 + hash2(i, 2) * 6, 8, 22 - hash2(i, 2) * 6);
-    // kitchen counter + wallet + fridge
-    shadowCut(ctx, '#8a8a90', 600, -44, 160, 44, 2); cut(ctx, '#3a3a44', 600, -40, 160, 6); if (!G.flags.wallet) cut(ctx, '#5a3a2a', 636, -50, 16, 8, 2); cut(ctx, '#2a2c3a', 700, -46, 30, 20, 2);
-    shadowCut(ctx, '#c8c8cc', 770, -FLOOR_H * .95, 52, FLOOR_H * .95, 3); cut(ctx, '#6a6a70', 776, -FLOOR_H * .6, 40, 3); cut(ctx, '#6a6a70', 812, -FLOOR_H * .8, 3, 14); cut(ctx, '#6a6a70', 812, -FLOOR_H * .5, 3, 14);
-    // balcony door (sliding glass)
-    cut(ctx, '#0d1226', 900, -FLOOR_H * 1.2, 80, FLOOR_H * 1.2); ctx.fillStyle = '#ffe2a0'; ctx.globalAlpha = .45; for (let i = 0; i < 20; i++) ctx.fillRect(905 + hash2(i, 7) * 70, -FLOOR_H * 1.15 + hash2(i, 8) * 100, 2, 3); ctx.globalAlpha = 1; cut(ctx, '#3a3448', 938, -FLOOR_H * 1.2, 4, FLOOR_H * 1.2);
-    // ceiling lamp
-    cut(ctx, '#ffe6a8', 470, -FLOOR_H * 1.75, 60, 8, 4); cut(ctx, '#6a5a3a', 499, -FLOOR_H * 1.8, 2, 16); glow(ctx, 500, -FLOOR_H * 1.7, 200, WARM, .2);
+    cut(ctx, '#3a3448', 110, -FLOOR_H * .95, 5, 26); cut(ctx, '#d8c070', 108, -FLOOR_H * .9, 9, 5, 2);
+    // ---- bedroom end: bed, headboard, nightstand, alarm clock, poster
+    const B = this.bed;
+    cut(ctx, '#4a3040', B - 96, -FLOOR_H * 1.0, 190, FLOOR_H * .55, 5);      // headboard
+    shadowCut(ctx, '#3a3448', B - 100, -48, 210, 48, 4);                      // frame
+    cut(ctx, '#e8e2d2', B - 96, -62, 200, 18, 6);                             // mattress
+    cut(ctx, G.flags.madeBed ? '#4a6a8a' : '#4a6a8a', B - 46, -66, 150, 24, 8); // duvet
+    if (!G.flags.madeBed) { cut(ctx, '#5a7a9a', B - 30, -72, 120, 16, 8); cut(ctx, '#41607e', B + 40, -70, 70, 18, 8); }
+    cut(ctx, '#f2ece0', B - 90, -76, 58, 20, 8);                              // pillow
+    shadowCut(ctx, '#5a3f2a', B + 130, -40, 56, 40, 3);                       // nightstand
+    cut(ctx, G.flags.clock ? '#3a1a1a' : '#b0413e', B + 142, -52, 30, 13, 2);
+    if (!G.flags.clock && Math.floor(G.clock * 400) % 2 === 0) { ctx.fillStyle = '#ff5a4a'; ctx.font = `bold 9px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('7:12', B + 157, -45); glow(ctx, B + 157, -45, 70, 'rgba(255,90,74,A)', .3); }
+    cut(ctx, '#6a5a3a', B + 196, -96, 4, 96); cut(ctx, '#ffe6a8', B + 182, -116, 32, 22, 4); Lights.add(B + 198, -110, 220, WARM_L, .7); Lights.caster(B + 198, 14, 200, .6);
+    cut(ctx, '#2a3a5a', B - 80, -FLOOR_H * 1.55, 90, 70, 2); ctx.fillStyle = '#d9b23a'; ctx.beginPath(); ctx.arc(B - 35, -FLOOR_H * 1.55 + 34, 18, 0, TAU); ctx.fill();
+    // alarm clock + phone on a side table
+    shadowCut(ctx, '#5a3f2a', 440, -34, 64, 34, 2); if (!G.flags.phone) cut(ctx, '#1c1a24', 462, -41, 13, 8, 2);
+    // ---- living end: couch, TV, shelves, record player
+    shadowCut(ctx, '#6a3a4a', 560, -40, 160, 40, 8); cut(ctx, '#7a4a5a', 560, -64, 160, 28, 8); cut(ctx, '#7a4a5a', 552, -52, 16, 52, 6); cut(ctx, '#7a4a5a', 712, -52, 16, 52, 6);
+    cut(ctx, '#8a5a6a', 600, -70, 30, 12, 5); cut(ctx, '#5a6a8a', 660, -70, 30, 12, 5);
+    shadowCut(ctx, '#2a2436', 600, -FLOOR_H * .62, 120, 66, 3); cut(ctx, G.flags.tv ? '#6ab8ff' : '#0a0c14', 606, -FLOOR_H * .62 + 6, 108, 54);
+    if (G.flags.tv) { glow(ctx, 660, -FLOOR_H * .62 + 33, 200, 'rgba(120,190,255,A)', .3); ctx.fillStyle = 'rgba(255,255,255,.22)'; ctx.fillRect(612 + (G.clock * 800) % 90, -FLOOR_H * .62 + 14, 32, 38); }
+    shadowCut(ctx, '#4a3a2a', 840, -46, 100, 46, 2); cut(ctx, '#2a2436', 852, -54, 76, 10, 2);
+    if (G.flags.music) { ctx.fillStyle = '#e8e2d2'; ctx.font = `14px ${FONT}`; ctx.textAlign = 'center'; for (let i = 0; i < 3; i++) { const ph = (G.clock * 300 + i * .33) % 1; ctx.globalAlpha = 1 - ph; ctx.fillText('♪', 890 + Math.sin(ph * 7 + i) * 14, -60 - ph * 60); } ctx.globalAlpha = 1; }
+    cut(ctx, '#5a3f2a', 960, -FLOOR_H * 1.15, 8, FLOOR_H * .55); cut(ctx, '#5a3f2a', 968, -FLOOR_H * 1.15, 96, 6); cut(ctx, '#5a3f2a', 968, -FLOOR_H * .9, 96, 6);
+    const bc = ['#b0413e', '#3e8a5b', '#2f6f9f', '#d9b23a', '#5a4a9f']; for (let i = 0; i < 9; i++) cut(ctx, bc[i % 5], 974 + i * 10, -FLOOR_H * 1.15 - 22 + hash2(i, 2) * 6, 8, 22 - hash2(i, 2) * 6);
+    // big window between the two halves
+    cut(ctx, '#0d1226', 740, -FLOOR_H * 1.5, 190, FLOOR_H * .95, 3); ctx.fillStyle = '#ffe2a0'; for (let i = 0; i < 70; i++) { ctx.globalAlpha = .3 + hash2(i, 9) * .6; ctx.fillRect(745 + hash2(i, 4) * 180, -FLOOR_H * 1.45 + hash2(i, 5) * 80, 2, 3); } ctx.globalAlpha = 1; cut(ctx, '#3a3448', 833, -FLOOR_H * 1.5, 4, FLOOR_H * .95);
+    // kitchen: counter, wallet, fridge, kettle
+    shadowCut(ctx, '#8a8a90', 1040, -46, 180, 46, 2); cut(ctx, '#3a3a44', 1040, -42, 180, 6);
+    if (!G.flags.wallet) cut(ctx, '#5a3a2a', 1082, -54, 18, 9, 2);
+    cut(ctx, '#2a2c3a', 1150, -50, 34, 22, 2); cut(ctx, '#c0c4cc', 1196, -58, 16, 16, 3);
+    shadowCut(ctx, '#c8c8cc', 1210, -FLOOR_H * .95, 56, FLOOR_H * .95, 3); cut(ctx, '#6a6a70', 1216, -FLOOR_H * .6, 44, 3); cut(ctx, '#6a6a70', 1254, -FLOOR_H * .8, 3, 14); cut(ctx, '#6a6a70', 1254, -FLOOR_H * .5, 3, 14);
+    cut(ctx, '#d9b23a', 1222, -FLOOR_H * .95 - 14, 20, 14, 2);
+    // plant + balcony door
+    cut(ctx, '#5a3a2a', 1300, -30, 30, 30, 3); ctx.fillStyle = '#2a6a4a'; for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.ellipse(1315 + Math.cos(i * 1.3) * 18, -52 + Math.sin(i * 1.3) * 12, 20, 9, i * .7, 0, TAU); ctx.fill(); }
+    cut(ctx, '#0d1226', 1400, -FLOOR_H * 1.2, 90, FLOOR_H * 1.2); ctx.fillStyle = '#ffe2a0'; ctx.globalAlpha = .45; for (let i = 0; i < 22; i++) ctx.fillRect(1405 + hash2(i, 7) * 80, -FLOOR_H * 1.15 + hash2(i, 8) * 100, 2, 3); ctx.globalAlpha = 1; cut(ctx, '#3a3448', 1443, -FLOOR_H * 1.2, 4, FLOOR_H * 1.2);
+    // ceiling lamps
+    for (const lx of [300, 700, 1120]) { cut(ctx, '#6a5a3a', lx + 29, -FLOOR_H * 1.9, 2, 16); cut(ctx, '#ffe6a8', lx, -FLOOR_H * 1.78, 60, 8, 4); Lights.add(lx + 30, -FLOOR_H * 1.7, 320, WARM_L, .7); Lights.caster(lx + 30, 16, 300, .7); }
     G.player.draw(ctx, cam.zoom);
+    if ((G.player.pose.lie || 0) > .3) { cut(ctx, '#41607e', B - 16, -70, 170, 26, 9); cut(ctx, '#4a6a8a', B - 20, -74, 140, 24, 9); }
+    Lights.draw(ctx, cam);
+    cam.end(ctx);
+  },
+};
+
+// ---------- STAIRWELL: 83 floors of it ----------
+const StairScene = {
+  name: 'stairs', where: 'Stairwell', w: 620, climbing: null,
+  enter(G, from) { const p = G.player; p.x = 300; p.y = 12; p.facing = 1; p.depth = 0; this.climbing = null; this.where = 'Stairs · floor ' + G.floor; Camera.follow = p; Camera.locked = false; Camera.snapTo(p.x, -90, 1.5); Camera.tzoom = 1.5; },
+  update(G, dt) {
+    const p = G.player;
+    if (this.climbing) {
+      const c = this.climbing; c.t += dt;
+      const k = clamp(c.t / c.dur, 0, 1);
+      p.x = lerp(c.x0, c.x1, k); p.y = 12; p.vx = (c.x1 - c.x0) / c.dur * .5; p.facing = sgn(c.x1 - c.x0);
+      Camera.y = -90 - Math.sin(k * Math.PI) * 60;
+      if (k >= 1) { G.floor = clamp(G.floor + c.dir, 0, TOWER.floors); this.where = 'Stairs · floor ' + (G.floor === 0 ? 'L' : G.floor); p.x = c.dir > 0 ? 120 : 500; this.climbing = null; G.stairFloors = (G.stairFloors || 0) + 1; if (G.stairFloors === 12) UI.setHint('This is going to take a while.', 3); if (G.stairFloors === 40) UI.setHint('Your legs are on fire.', 3); }
+      p.update(dt); return;
+    }
+    G.movePlayer(dt, 60, this.w - 60, 4, ROOM_DEPTH);
+    if (Math.abs(p.x - 300) < 60) G.setPrompt('Leave stairwell', () => G.go(G.floor === 0 ? 'lobby' : 'hall', 'stairs'));
+    else if (p.x > this.w - 110 && G.floor < TOWER.floors) G.setPrompt('Up one floor', () => { this.climbing = { t: 0, dur: 2.6, x0: p.x, x1: this.w - 70, dir: 1 }; });
+    else if (p.x < 110 && G.floor > 0) G.setPrompt('Down one floor', () => { this.climbing = { t: 0, dur: 2.1, x0: p.x, x1: 70, dir: -1 }; });
+    else G.setPrompt(null);
+  },
+  draw(G, ctx, cam, pal) {
+    ctx.fillStyle = '#07090f'; ctx.fillRect(0, 0, cam.w, cam.h);
+    cam.begin(ctx); inkW(cam.zoom);
+    roomBase(ctx, this.w, '#2f3238', '#3a3d44', '#222429');
+    ctx.fillStyle = 'rgba(0,0,0,.2)'; for (let x = 0; x < this.w; x += 50) ctx.fillRect(x, 0, 25, ROOM_DEPTH + 8);
+    // flights going up on the right, down on the left
+    const flight = (x0, dir) => { for (let i = 0; i < 7; i++) { const x = x0 + dir * i * 22, y = -i * 18; cut(ctx, '#4a4d55', x, y - 18, 22, 18); cut(ctx, '#3a3d44', x, y - 20, 22, 3); }
+      ctx.fillStyle = '#6a6e78'; for (let i = 0; i < 7; i++) ctx.fillRect(x0 + dir * i * 22 + 8, -i * 18 - 56, 3, 36); ctx.save(); ctx.beginPath(); ctx.moveTo(x0, -54); ctx.lineTo(x0 + dir * 154, -54 - 126); ctx.lineTo(x0 + dir * 154, -46 - 126); ctx.lineTo(x0, -46); ctx.fill(); ctx.restore(); };
+    flight(this.w - 170, 1); flight(160, -1);
+    // landing door and floor number stencil
+    cut(ctx, '#4a4038', 268, -FLOOR_H * .92, 64, FLOOR_H * .92, 2); cut(ctx, '#d8c070', 322, -FLOOR_H * .45, 5, 5, 2);
+    cut(ctx, '#20232a', 250, -FLOOR_H * 1.25, 100, 34, 2);
+    ctx.fillStyle = '#c9cdd6'; ctx.font = `bold 24px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(G.floor === 0 ? 'L' : String(G.floor), 300, -FLOOR_H * 1.25 + 17);
+    ctx.fillStyle = '#8a8e98'; ctx.font = `10px ${FONT}`; ctx.fillText('EXIT', 300, -FLOOR_H * .98);
+    // a single caged bulb, pipes, a scrawl on the wall
+    cut(ctx, '#ffe9c0', 292, -FLOOR_H * 1.7, 18, 10, 4); glow(ctx, 300, -FLOOR_H * 1.66, 260, 'rgba(255,233,192,A)', .3);
+    Lights.add(300, -FLOOR_H * 1.66, 320, LC.lamp, .8); Lights.caster(300, 16, 280, .8);
+    ctx.fillStyle = '#5a5e66'; ctx.fillRect(40, -FLOOR_H * 1.55, this.w - 80, 5); ctx.fillRect(40, -FLOOR_H * 1.35, this.w - 80, 3);
+    ctx.fillStyle = 'rgba(200,190,170,.25)'; ctx.font = `12px ${FONT}`; ctx.fillText('83 FLOORS. GOOD LUCK.', 430, -70);
+    G.player.draw(ctx, cam.zoom);
+    Lights.draw(ctx, cam);
     cam.end(ctx);
   },
 };
@@ -248,4 +335,4 @@ const RoofScene = {
   update(G, dt) { const p = G.player; G.movePlayer(dt, this.x0 + 12, this.x0 + this.w - 12, this.y, this.y); const b = Camera.bounds(); G.city.crowd.update(dt, p, b); if (Math.abs(p.x - (TOWER.x + TOWER.w / 2 - 150)) < 50) G.setPrompt('Take elevator', () => G.openElevator('roof')); else G.setPrompt(null); },
   draw(G, ctx, cam, pal) { StreetScene.draw(G, ctx, cam, pal); },
 };
-const SCENES = { street: StreetScene, lobby: LobbyScene, elevator: ElevatorScene, hall: HallScene, apartment: ApartmentScene, balcony: BalconyScene, roof: RoofScene };
+const SCENES = { stairs: StairScene, street: StreetScene, lobby: LobbyScene, elevator: ElevatorScene, hall: HallScene, apartment: ApartmentScene, balcony: BalconyScene, roof: RoofScene };
