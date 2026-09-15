@@ -274,9 +274,15 @@ const ApartmentScene = {
     cut(ctx, '#3a3448', 282, -FLOOR_H * .95, 38, 50, 3); cut(ctx, '#7a90a8', 285, -FLOOR_H * .95 + 3, 32, 44, 2); cut(ctx, 'rgba(255,255,255,.15)', 288, -FLOOR_H * .95 + 6, 8, 38, 2);
     // wardrobe
     box(ctx, '#4a3020', 340, -FLOOR_H * 1.15, 52, FLOOR_H * 1.15, 2); cut(ctx, '#3a2418', 365, -FLOOR_H * 1.15 + 4, 2, FLOOR_H * 1.15 - 8); cut(ctx, '#d8c070', 360, -FLOOR_H * .55, 3, 6); cut(ctx, '#d8c070', 369, -FLOOR_H * .55, 3, 6);
-    // pictures on the bedroom wall
-    cut(ctx, '#2a2436', B - 40, -FLOOR_H * 1.45, 26, 20, 1); cut(ctx, '#3a5a8a', B - 37, -FLOOR_H * 1.45 + 3, 20, 14); ctx.fillStyle = '#e8e2d2'; ctx.beginPath(); ctx.arc(B - 27, -FLOOR_H * 1.45 + 10, 4, 0, TAU); ctx.fill();
-    cut(ctx, '#2a2436', B - 8, -FLOOR_H * 1.4, 18, 14, 1); cut(ctx, '#8a5a3a', B - 5, -FLOOR_H * 1.4 + 3, 12, 8);
+    // pictures + a poster on the bedroom wall, a small shelf with a plant and a clock
+    cut(ctx, '#2a2436', B - 42, -FLOOR_H * 1.45, 26, 20, 1); cut(ctx, '#3a5a8a', B - 39, -FLOOR_H * 1.45 + 3, 20, 14); ctx.fillStyle = '#e8e2d2'; ctx.beginPath(); ctx.arc(B - 29, -FLOOR_H * 1.45 + 10, 4, 0, TAU); ctx.fill(); ctx.fillStyle = '#2a4a3a'; ctx.beginPath(); ctx.moveTo(B - 39, -FLOOR_H * 1.45 + 17); ctx.lineTo(B - 30, -FLOOR_H * 1.45 + 8); ctx.lineTo(B - 19, -FLOOR_H * 1.45 + 17); ctx.fill();
+    cut(ctx, '#2a2436', B - 12, -FLOOR_H * 1.4, 18, 14, 1); cut(ctx, '#8a5a3a', B - 9, -FLOOR_H * 1.4 + 3, 12, 8);
+    cut(ctx, '#1a1c2a', 60, -FLOOR_H * 1.55, 40, 54, 1); cut(ctx, '#c0392b', 64, -FLOOR_H * 1.55 + 4, 32, 46); ctx.fillStyle = '#f2d98a'; ctx.font = `bold 9px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('LIVE', 80, -FLOOR_H * 1.55 + 20); ctx.fillText('JAZZ', 80, -FLOOR_H * 1.55 + 32);
+    cut(ctx, '#5a3f2a', 112, -FLOOR_H * 1.2, 44, 3); cut(ctx, '#5a3a2a', 116, -FLOOR_H * 1.2 - 9, 9, 9, 1); ctx.fillStyle = '#2a6a4a'; ctx.beginPath(); ctx.arc(120, -FLOOR_H * 1.2 - 13, 6, 0, TAU); ctx.fill(); cut(ctx, '#e8e2d2', 134, -FLOOR_H * 1.2 - 12, 12, 12, 6); ctx.strokeStyle = '#1c1a24'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(140, -FLOOR_H * 1.2 - 6); ctx.lineTo(140, -FLOOR_H * 1.2 - 10); ctx.moveTo(140, -FLOOR_H * 1.2 - 6); ctx.lineTo(143, -FLOOR_H * 1.2 - 5); ctx.stroke();
+    // ceiling light with a shade
+    cut(ctx, '#6a5a3a', 185, -FLOOR_H * 2.05, 2, 12); ctx.fillStyle = '#d9c9a8'; ctx.beginPath(); ctx.moveTo(172, -FLOOR_H * 1.93); ctx.lineTo(200, -FLOOR_H * 1.93); ctx.lineTo(194, -FLOOR_H * 1.85); ctx.lineTo(178, -FLOOR_H * 1.85); ctx.fill(); Lights.add(186, -FLOOR_H * 1.8, 260, WARM_L, .55); Lights.caster(186, 16, 240, .5);
+    // laundry pile in the corner
+    ctx.fillStyle = '#5a5a72'; ctx.beginPath(); ctx.ellipse(410, -4, 16, 6, 0, 0, TAU); ctx.fill(); ctx.fillStyle = '#7a4a3a'; ctx.beginPath(); ctx.ellipse(414, -9, 11, 5, .3, 0, TAU); ctx.fill(); ctx.fillStyle = '#e8e2d2'; ctx.beginPath(); ctx.ellipse(406, -12, 8, 4, -.2, 0, TAU); ctx.fill();
     // side table with the phone
     box(ctx, '#5a3f2a', 358, -22, 28, 22, 2); if (!G.flags.phone) cut(ctx, '#1c1a24', 368, -26, 8, 5, 1);
     // ---- living room: couch, coffee table, TV unit, shelves, record player, floor lamp
@@ -311,7 +317,7 @@ const ApartmentScene = {
     // front door
     box(ctx, '#5a3a2a', 40, -FLOOR_H * .92, 44, FLOOR_H * .92, 2); cut(ctx, '#d8c070', 76, -FLOOR_H * .45, 4, 4, 2); cut(ctx, '#3a3448', 96, -FLOOR_H * .95, 4, 20); cut(ctx, '#d8c070', 94, -FLOOR_H * .9, 8, 4, 2);
     // ceiling lamps
-    for (const lx of [200, 560, 880]) { cut(ctx, '#6a5a3a', lx + 19, -FLOOR_H * 1.95, 2, 14); cut(ctx, '#ffe6a8', lx, -FLOOR_H * 1.82, 40, 6, 3); Lights.add(lx + 20, -FLOOR_H * 1.75, 300, WARM_L, .65); Lights.caster(lx + 20, 16, 280, .6); }
+    for (const lx of [560, 880]) { cut(ctx, '#6a5a3a', lx + 19, -FLOOR_H * 1.95, 2, 14); cut(ctx, '#ffe6a8', lx, -FLOOR_H * 1.82, 40, 6, 3); Lights.add(lx + 20, -FLOOR_H * 1.75, 300, WARM_L, .65); Lights.caster(lx + 20, 16, 280, .6); }
     G.player.draw(ctx, cam.zoom);
     if ((G.player.pose.lie || 0) > .3) { cut(ctx, '#41607e', B - 8, -31, 50, 11, 5); cut(ctx, '#4a6a8a', B - 6, -33, 46, 9, 5); }
     Lights.draw(ctx, cam);
