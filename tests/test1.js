@@ -27,7 +27,7 @@ G.player.x = 1010; G.update(1/60); assert(ctx.UI.prompt === 'Call elevator'); ac
 ctx.ElevatorScene.pick(G, 83); step(60 * 7); assert(G.scene.name === 'hall', 'arrived hall, is ' + G.scene.name); assert(G.floor === 83); G.draw();
 // home
 G.player.x = 720; G.update(1/60); assert(ctx.UI.prompt === 'Go home', ctx.UI.prompt); act(); settle(); assert(G.scene.name === 'apartment'); G.draw();
-G.player.x = 850; G.update(1/60); assert(ctx.UI.prompt === 'Take wallet', ctx.UI.prompt); const c0 = G.cash; act(); assert(G.cash === c0 + 40, 'wallet');
+G.player.x = 972; G.update(1/60); assert(ctx.UI.prompt === 'Take wallet', ctx.UI.prompt); const c0 = G.cash; act(); assert(G.cash === c0 + 40, 'wallet');
 G.player.x = 1120; G.update(1/60); act(); settle(); assert(G.scene.name === 'balcony', G.scene.name); step(60 * 9); G.draw(); assert(G.flags.balconyReveal);
 // back in, elevator to roof and lobby
 G.player.x = ctx.SCENES.balcony.x0 + 20; G.update(1/60); act(); settle(); assert(G.scene.name === 'apartment');
