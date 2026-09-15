@@ -17,7 +17,7 @@ const Game = {
   startIntro() {
     // he's asleep. alarm, sit up, stretch, stand, and then it's your night.
     this.state = 'intro'; const p = this.player, B = ApartmentScene.bed;
-    p.x = B - 24; p.y = -30; p.facing = 1; p.posture = 'inBed'; p.setEmote('inBed', 99); this.where = 'Home · 8304';
+    p.x = B + 30; p.y = -30; p.facing = 1; p.posture = 'inBed'; p.setEmote('inBed', 99); this.where = 'Home · 8304';
     Camera.follow = null; Camera.locked = true; Camera.snapTo(B + 20, -70, 3.2); Camera.tzoom = 3.2; Camera.tx = B + 20; Camera.ty = -70;
     this.cinema = { t: 0, step: 0 };
   },
