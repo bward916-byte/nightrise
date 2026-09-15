@@ -8,20 +8,32 @@ const FONT = '"Comic Neue","Comic Sans MS","Chalkboard SE","Segoe Print",sans-se
 // Legs: hip angle from straight-down, +forward. knee = fold backward.
 // Arms: shoulder angle from straight-down, +forward (PI = straight up). elbow = fold forward.
 // spine: lean from vertical, +forward. head: nod, +forward (down). bob: pelvis vertical offset.
-const POSE0 = { hipF: 0, kneeF: .06, hipB: 0, kneeB: .06, shF: 0, elF: .12, shB: 0, elB: .12, spine: 0, head: 0, bob: 0, shrug: 0, footF: 0, footB: 0, sit: 0, lie: 0 };
+const POSE0 = { hipF: 0, kneeF: .06, hipB: 0, kneeB: .06, shF: 0, elF: .12, shB: 0, elB: .12, spine: 0, head: 0, bob: 0, shrug: 0, footF: 0, footB: 0, sit: 0, lie: 0, twist: 0 };
 const P = o => Object.assign({}, POSE0, o);
 const POSTURES = {
   idle: t => P({ bob: Math.sin(t * 2.2) * .6, shF: .04, shB: -.04, elF: .18 + Math.sin(t * 2.2) * .02 }),
   idleShift: t => { const w = Math.sin(t * .7); return P({ bob: Math.sin(t * 2.2) * .6 + Math.abs(w) * 1.2, hipF: .12 * w + .04, hipB: -.1 * w - .04, kneeF: .06 + Math.max(0, w) * .18, kneeB: .06 + Math.max(0, -w) * .18, spine: -.03 * w, shF: .05, shB: -.05, elF: .16, elB: .16 }); },
   pockets: t => P({ bob: Math.sin(t * 2.2) * .5, shF: -.35, elF: .55, shB: -.35, elB: .55, spine: .06, head: .04, hipF: .08, hipB: -.06 }),
   idleLook: t => P({ bob: Math.sin(t * 2.2) * .6, shF: .04, shB: -.04, elF: .18, head: -.12 + Math.sin(t * .9) * .18, spine: -.02 }),
-  walk: (t, ph) => { const s = Math.sin(ph * TAU), c = Math.cos(ph * TAU);
-    return P({ hipF: s * .55, kneeF: Math.max(0, -c) * .9 + .08, hipB: -s * .55, kneeB: Math.max(0, c) * .9 + .08,
-      shF: -s * .45, elF: .35 + Math.max(0, -s) * .3, shB: s * .45, elB: .35 + Math.max(0, s) * .3,
-      spine: .04, bob: Math.abs(c) * 1.6, footF: Math.max(0, s) * .3, footB: Math.max(0, -s) * .3 }); },
-  run: (t, ph) => { const s = Math.sin(ph * TAU), c = Math.cos(ph * TAU);
-    return P({ hipF: s * .95, kneeF: Math.max(0, -c) * 1.6 + .3, hipB: -s * .95, kneeB: Math.max(0, c) * 1.6 + .3,
-      shF: -s * .9, elF: 1.5, shB: s * .9, elB: 1.5, spine: .22, bob: Math.abs(c) * 4 - 2 }); },
+  walk: (t, ph) => {
+    const a = ph * TAU, s = Math.sin(a), c = Math.cos(a);
+    // legs: swing forward, knee folds on the way through, straightens at heel strike
+    const swing = s * .5, fold = Math.max(0, -c);
+    // torso stays upright; a small counter-rotation and a level head do most of the work
+    return P({
+      hipF: swing, kneeF: fold * .85 + .05, hipB: -swing, kneeB: Math.max(0, c) * .85 + .05,
+      shF: -s * .38, elF: .28 + Math.max(0, -s) * .22, shB: s * .38, elB: .28 + Math.max(0, s) * .22,
+      spine: -.015 + Math.sin(a * 2) * .012,          // upright, tiny bounce, no permanent lean
+      head: -Math.sin(a * 2) * .035,                   // head stays level while the body bobs
+      bob: Math.abs(c) * 1.15 - .35,
+      twist: -s * .1,                                  // shoulders counter the hips
+      footF: clamp(-s, 0, 1) * .34 - fold * .2, footB: clamp(s, 0, 1) * .34 - Math.max(0, c) * .2,
+    });
+  },
+  run: (t, ph) => { const a = ph * TAU, s = Math.sin(a), c = Math.cos(a);
+    return P({ hipF: s * .9, kneeF: Math.max(0, -c) * 1.5 + .28, hipB: -s * .9, kneeB: Math.max(0, c) * 1.5 + .28,
+      shF: -s * .85, elF: 1.45, shB: s * .85, elB: 1.45, spine: .16, head: -.08 - Math.sin(a * 2) * .04,
+      bob: Math.abs(c) * 3.4 - 1.6, twist: -s * .16 }); },
   armsUp: t => P({ shF: 2.6 + Math.sin(t * 6) * .12, elF: .4, shB: 2.5 - Math.sin(t * 6) * .12, elB: .45, head: -.25, spine: -.08, hipF: .12, hipB: -.1 }),
   headDown: t => P({ head: .75, spine: .22, shF: .12, elF: .08, shB: .1, elB: .08, bob: 2, kneeF: .18, kneeB: .18 }),
   shrug: t => P({ shF: .7, elF: 1.9, shB: .6, elB: 1.9, shrug: 1, head: -.1, spine: -.04 }),
@@ -110,7 +122,7 @@ class Actor {
     }
     // personal gait: stride, arm swing, bounce, slouch, head carriage
     if (this.moving && !this.emote) { target.hipF *= g.stride; target.hipB *= g.stride; target.kneeF = (target.kneeF - .08) * g.kneeLift + .08; target.kneeB = (target.kneeB - .08) * g.kneeLift + .08; target.shF *= g.armSwing; target.shB *= g.armSwing; target.elF = .12 + (target.elF - .12) * g.armSwing; target.elB = .12 + (target.elB - .12) * g.armSwing; target.bob *= g.bounce; target.spine += g.sway * Math.sin(this.phase * TAU * 2) * .02; }
-    if (!target.sit) { target.spine += g.slouch * (this.emote ? .4 : 1); target.head += g.headTilt * (this.emote ? .4 : 1); if (g.slouch > .1) { target.shF += g.slouch * .3; target.shB += g.slouch * .3; } }
+    if (!target.sit && !target.lie) { const m = this.emote ? .4 : this.moving ? .55 : 1; target.spine += g.slouch * m; target.head += g.headTilt * m; if (g.slouch > .08) { target.shF += g.slouch * .25; target.shB += g.slouch * .25; } }
     const k = 1 - Math.pow(0.0005, dt);
     this.pose = blendPose(this.pose, target, k);
     // expression blend
@@ -129,7 +141,7 @@ class Actor {
       const a = hip - knee; const ax = kx + Math.sin(a) * this.shin, ay = ky + Math.cos(a) * this.shin;
       return { kx, ky, ax, ay, a, foot };
     };
-    const shx = pel.x + Math.sin(p.spine) * this.torso, shy = pel.y - Math.cos(p.spine) * this.torso - p.shrug * this.h * .02;
+    const shx = pel.x + Math.sin(p.spine) * this.torso + (p.twist || 0) * this.shW, shy = pel.y - Math.cos(p.spine) * this.torso - p.shrug * this.h * .02;
     const arm = (sh, el) => {
       const ex = shx + Math.sin(sh) * this.upper, ey = shy + Math.cos(sh) * this.upper;
       const a = sh + el; return { ex, ey, hx: ex + Math.sin(a) * this.fore, hy: ey + Math.cos(a) * this.fore, a };
