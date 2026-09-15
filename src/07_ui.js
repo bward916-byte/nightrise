@@ -22,8 +22,12 @@ const UI = {
     const turning0 = !!G.turn; if (turning0) { ctx.restore(); return; }
     this.panel(ctx, 12, 12, 150, 38); ctx.fillStyle = '#1c1a24'; ctx.font = `bold 17px ${FONT}`; ctx.textAlign = 'left'; ctx.fillText('$' + G.cash.toLocaleString(), 24, 31);
     const hr = G.hour() % 24, h12 = ((Math.floor(hr) + 11) % 12) + 1, mn = Math.floor((hr % 1) * 60); ctx.font = `12px ${FONT}`; ctx.textAlign = 'right'; ctx.fillText(`${h12}:${mn < 10 ? '0' : ''}${mn}${Math.floor(hr) % 24 >= 12 ? 'pm' : 'am'}`, 152, 31);
+    // energy + look meters
+    const meter = (x, y, w, v, col, label) => { this.panel(ctx, x, y, w, 14, 7, 'rgba(242,236,223,.8)'); ctx.fillStyle = col; ctx.beginPath(); ctx.roundRect(x + 2, y + 2, Math.max(4, (w - 4) * clamp(v / 100, 0, 1)), 10, 5); ctx.fill(); ctx.fillStyle = '#1c1a24'; ctx.font = `9px ${FONT}`; ctx.textAlign = 'left'; ctx.fillText(label, x + 6, y + 7.5); };
+    meter(172, 12, 90, G.energy, G.energy < 25 ? '#ff6a4a' : '#7dff7a', 'ENERGY'); meter(172, 30, 90, G.look, '#ffd36a', 'LOOK ' + Math.round(G.look));
+    if (G.heat > .2) { this.panel(ctx, 270, 12, 60, 32, 7, 'rgba(255,90,74,.85)'); ctx.fillStyle = '#fff'; ctx.font = `bold 10px ${FONT}`; ctx.textAlign = 'center'; ctx.fillText('HEAT', 300, 28); }
     const hh = G.scene && G.scene.name === 'street' ? G.homeHint() : null; if (hh) { this.panel(ctx, 12, 56, 150, 26, 13, 'rgba(242,236,223,.8)'); ctx.fillStyle = '#1c1a24'; ctx.font = `11px ${FONT}`; ctx.textAlign = 'center'; ctx.fillText('🏠 ' + hh, 87, 69); }
-    this.panel(ctx, W - 192, 12, 180, 38); ctx.fillStyle = '#1c1a24'; ctx.font = `13px ${FONT}`; ctx.textAlign = 'center'; ctx.fillText(`${G.where}  ·  ${Camera.stopName()}`, W - 102, 31);
+    this.panel(ctx, W - 192, 12, 180, 38); ctx.fillStyle = '#1c1a24'; ctx.font = `13px ${FONT}`; ctx.textAlign = 'center'; ctx.fillText(`${G.where}  ·  N${G.night || 1} · rent ${G.rentDue}n`, W - 102, 31);
     const turning = !!G.turn;
     const n = G.inv.length, sw = mobile ? 40 : 46, gap = 6, ix = W / 2 - (n * sw + (n - 1) * gap) / 2, iy = H - sw - 14;
     if (!turning) for (let i = 0; i < n; i++) { const x = ix + i * (sw + gap); this.panel(ctx, x, iy, sw, sw, 6, 'rgba(242,236,223,.8)'); const it = G.inv[i]; if (it) { ctx.fillStyle = it.col || '#3d4150'; ctx.beginPath(); ctx.roundRect(x + 8, iy + 8, sw - 16, sw - 16, 4); ctx.fill(); ctx.fillStyle = '#1c1a24'; ctx.font = `10px ${FONT}`; ctx.textAlign = 'center'; ctx.fillText(it.name, x + sw / 2, iy + sw - 7); } }
