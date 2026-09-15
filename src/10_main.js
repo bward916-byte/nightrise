@@ -85,7 +85,6 @@ const Game = {
       else if (id === 'emotes') UI.panelOpen = !UI.panelOpen;
       else if (id === 'mute') { Music.on = !Music.on; UI.say(Music.on ? 'Music on' : 'Music off', 1.2); }
       else if (id === 'act' && this.action) this.action();
-      else if (id && id.startsWith('emote:')) p.setEmote(id.slice(6), 2.4);
       if (id && !(id.startsWith('fl:') || id === 'esc')) Input.tap = null;
     }
     if (this.cinema) { this.updateIntro(dt); Input.endFrame(); return; }
@@ -106,6 +105,7 @@ const Game = {
     const ctx = this.ctx, cam = Camera, pal = dayPalette();
     ctx.setTransform(cam.dpr, 0, 0, cam.dpr, 0, 0);
     if (typeof Lights !== 'undefined') Lights.clear();
+    UI.buttons = [];
     this.scene.draw(this, ctx, cam, pal);
     // night vignette
     const v = ctx.createRadialGradient(cam.w / 2, cam.h / 2, cam.h * .35, cam.w / 2, cam.h / 2, cam.h * .95); v.addColorStop(0, 'rgba(5,6,16,0)'); v.addColorStop(1, 'rgba(5,6,16,.55)'); ctx.fillStyle = v; ctx.fillRect(0, 0, cam.w, cam.h);
