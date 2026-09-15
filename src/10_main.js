@@ -66,7 +66,9 @@ const Game = {
   openElevator(from) { this.elevatorFrom = from; this.go('elevator', from); },
   elevatorFloorLabel() { return this.scene === ElevatorScene ? '' : this.floor === 0 ? 'L' : this.floor === 99 ? 'R' : String(this.floor); },
   update(dt) {
-    Input.update(); UI.update(dt); this.clock += dt / 50; if (!Sfx.ok && (Input.tap || Object.values(Input.pressed).some(Boolean))) Sfx.init();
+    Input.update(); UI.update(dt); this.clock += dt / 50;
+    if (!Sfx.ok && (Input.tap || Object.values(Input.pressed).some(Boolean))) Sfx.init();
+    Music.follow(this); Music.update(dt);
     const p = this.player;
     if (!this.scene.noZoom && !Camera.seq) {
       if (Input.wheel) Camera.zoomBy(Math.pow(1.0018, -Input.wheel));
@@ -78,6 +80,7 @@ const Game = {
       const id = UI.hit(Input.tap);
       if (id === 'zoomIn') Camera.setStop(Camera.stopIndex - 1); else if (id === 'zoomOut') Camera.setStop(Camera.stopIndex + 1); else if (id === 'zoomFit') Camera.setStop(1);
       else if (id === 'emotes') UI.panelOpen = !UI.panelOpen;
+      else if (id === 'mute') { Music.on = !Music.on; UI.say(Music.on ? 'Music on' : 'Music off', 1.2); }
       else if (id === 'act' && this.action) this.action();
       else if (id && id.startsWith('emote:')) p.setEmote(id.slice(6), 2.4);
       if (id && !(id.startsWith('fl:') || id === 'esc')) Input.tap = null;
@@ -85,6 +88,7 @@ const Game = {
     if (this.cinema) { this.updateIntro(dt); Input.endFrame(); return; }
     if (this.state === 'play' && !this.fadeDir) {
       for (const e of EMOTES) if (Input.consume('Digit' + e.key)) p.setEmote(e.name, 2.4);
+      if (Input.consume('KeyM')) { Music.on = !Music.on; UI.say(Music.on ? 'Music on' : 'Music off', 1.2); }
       if (this.scene !== ElevatorScene && (Input.consume('KeyE') || Input.consume('Space') || Input.consume('Enter')) && this.action) this.action();
       this.scene.update(this, dt);
     } else if (this.scene === ElevatorScene) this.scene.update(this, dt);
