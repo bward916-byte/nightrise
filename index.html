@@ -245,10 +245,10 @@ function genCharacter(seed, forceArch, opts) {
     face: { eye: r.int(0, 2), brow: r.int(0, 2), nose: r.int(0, 2), lips: false },
     heels: false, skirt: null,
     // gait: how this particular body carries itself
-    gait: { slouch: r.range(-.06, .22), headTilt: r.range(-.12, .18), armSwing: r.range(.45, 1.5), stride: r.range(.8, 1.2),
+    gait: { slouch: r.range(-.07, .10), headTilt: r.range(-.12, .18), armSwing: r.range(.45, 1.5), stride: r.range(.8, 1.2),
       bounce: r.range(.3, 1.8), cadence: r.range(.85, 1.2), kneeLift: r.range(.6, 1.4), sway: r.range(0, 1), idle: r.pick(['idle', 'idle', 'idleShift', 'pockets', 'idleLook']) },
   };
-  if (age > .7) { c.hair.color = r.pick(['#8c8c8c', '#d9d9d9', '#bfb8ae', '#e8e6e0']); c.walkSpeed *= .6; c.gait.slouch += .18; c.gait.stride *= .7; c.gait.armSwing *= .6; c.gait.bounce *= .5; c.gait.headTilt += .15; }
+  if (age > .7) { c.hair.color = r.pick(['#8c8c8c', '#d9d9d9', '#bfb8ae', '#e8e6e0']); c.walkSpeed *= .6; c.gait.slouch += .12; c.gait.stride *= .7; c.gait.armSwing *= .6; c.gait.bounce *= .5; c.gait.headTilt += .15; }
   // hair by gender/age
   if (gender === 'm') {
     c.hair.style = age > .6 && r.chance(.45) ? r.pick(['bald', 'buzz', 'side']) : r.weighted([['short', 5], ['buzz', 3], ['side', 3], ['curly', 2], ['afro', 1], ['long', 1], ['bun', 1], ['slick', 2], ['mohawk', .3], ['bald', 1]]);
@@ -322,7 +322,7 @@ function genCharacter(seed, forceArch, opts) {
       c.bottom = { type: r.pick(['jeans', 'shorts', 'sweatpants', gender === 'f' ? 'skirt' : 'jeans']), color: pick(CLOTH.neutral) };
       c.shoes = 'sneakers'; c.shoeColor = pick(['#e8e3d6', '#1c1a17', '#b0413e']); c.accessory = r.pick(['backpack', 'backpack', 'phone', 'coffee']);
       c.hat = r.weighted([['none', 6], ['cap', 2], ['beanie', 1], ['capBack', 1]]);
-      c.gait.slouch += .12; c.gait.headTilt += .1; c.gait.idle = r.pick(['pockets', 'pockets', 'idleShift']);
+      c.gait.slouch += .06; c.gait.headTilt += .06; c.gait.idle = r.pick(['pockets', 'pockets', 'idleShift']);
       break;
     case 'casual':
       c.top = { type: r.pick(['tshirt', 'shirt', 'sweater', 'hoodie', gender === 'f' ? 'blouse' : 'tshirt']), color: pick(CLOTH.neutral.concat(CLOTH.bright)), color2: pick(CLOTH.pale) };
@@ -347,7 +347,7 @@ function genPlayer() {
   c.skin = '#e0ad86'; c.hair = { style: 'short', color: '#2c1d14' }; c.facial = 'stubble'; c.glasses = 'none';
   c.top = { type: 'hoodie', color: '#7a4a3a', color2: '#c9c6bc' }; c.bottom = { type: 'jeans', color: '#4a5a72' };
   c.shoes = 'sneakers'; c.shoeColor = '#e8e3d6'; c.hat = 'none'; c.accessory = 'none'; c.height = 1.78; c.build = 1.02; c.age = .3;
-  c.walkSpeed = 1.5 * M; c.isPlayer = true; c.gait = { slouch: .05, headTilt: .02, armSwing: 1, stride: 1, bounce: 1, cadence: 1, kneeLift: 1, sway: .3, idle: 'idleShift' };
+  c.walkSpeed = 1.5 * M; c.isPlayer = true; c.gait = { slouch: .01, headTilt: .02, armSwing: 1, stride: 1, bounce: 1, cadence: 1, kneeLift: 1, sway: .3, idle: 'idleShift' };
   return c;
 }
 // The guy in the alley
@@ -356,7 +356,7 @@ function genCartMan() {
   c.skin = '#c98e66'; c.hair = { style: 'long', color: '#8c8c8c' }; c.facial = 'bigBeard'; c.age = .8;
   c.top = { type: 'rags', color: '#5a5245', color2: '#7c6f5a' }; c.bottom = { type: 'sweatpants', color: '#4f4a44' };
   c.shoes = 'workboots'; c.shoeColor = '#3f3a34'; c.hat = 'beanie'; c.hatColor = '#6e6152'; c.accessory = 'none';
-  c.height = 1.74; c.build = .95; c.walkSpeed = .7 * M; c.name = 'Cart guy'; c.gait.slouch = .28; c.gait.headTilt = .12;
+  c.height = 1.74; c.build = .95; c.walkSpeed = .7 * M; c.name = 'Cart guy'; c.gait.slouch = .2; c.gait.headTilt = .1;
   return c;
 }
 
@@ -371,20 +371,32 @@ const FONT = '"Comic Neue","Comic Sans MS","Chalkboard SE","Segoe Print",sans-se
 // Legs: hip angle from straight-down, +forward. knee = fold backward.
 // Arms: shoulder angle from straight-down, +forward (PI = straight up). elbow = fold forward.
 // spine: lean from vertical, +forward. head: nod, +forward (down). bob: pelvis vertical offset.
-const POSE0 = { hipF: 0, kneeF: .06, hipB: 0, kneeB: .06, shF: 0, elF: .12, shB: 0, elB: .12, spine: 0, head: 0, bob: 0, shrug: 0, footF: 0, footB: 0, sit: 0, lie: 0 };
+const POSE0 = { hipF: 0, kneeF: .06, hipB: 0, kneeB: .06, shF: 0, elF: .12, shB: 0, elB: .12, spine: 0, head: 0, bob: 0, shrug: 0, footF: 0, footB: 0, sit: 0, lie: 0, twist: 0 };
 const P = o => Object.assign({}, POSE0, o);
 const POSTURES = {
   idle: t => P({ bob: Math.sin(t * 2.2) * .6, shF: .04, shB: -.04, elF: .18 + Math.sin(t * 2.2) * .02 }),
   idleShift: t => { const w = Math.sin(t * .7); return P({ bob: Math.sin(t * 2.2) * .6 + Math.abs(w) * 1.2, hipF: .12 * w + .04, hipB: -.1 * w - .04, kneeF: .06 + Math.max(0, w) * .18, kneeB: .06 + Math.max(0, -w) * .18, spine: -.03 * w, shF: .05, shB: -.05, elF: .16, elB: .16 }); },
   pockets: t => P({ bob: Math.sin(t * 2.2) * .5, shF: -.35, elF: .55, shB: -.35, elB: .55, spine: .06, head: .04, hipF: .08, hipB: -.06 }),
   idleLook: t => P({ bob: Math.sin(t * 2.2) * .6, shF: .04, shB: -.04, elF: .18, head: -.12 + Math.sin(t * .9) * .18, spine: -.02 }),
-  walk: (t, ph) => { const s = Math.sin(ph * TAU), c = Math.cos(ph * TAU);
-    return P({ hipF: s * .55, kneeF: Math.max(0, -c) * .9 + .08, hipB: -s * .55, kneeB: Math.max(0, c) * .9 + .08,
-      shF: -s * .45, elF: .35 + Math.max(0, -s) * .3, shB: s * .45, elB: .35 + Math.max(0, s) * .3,
-      spine: .04, bob: Math.abs(c) * 1.6, footF: Math.max(0, s) * .3, footB: Math.max(0, -s) * .3 }); },
-  run: (t, ph) => { const s = Math.sin(ph * TAU), c = Math.cos(ph * TAU);
-    return P({ hipF: s * .95, kneeF: Math.max(0, -c) * 1.6 + .3, hipB: -s * .95, kneeB: Math.max(0, c) * 1.6 + .3,
-      shF: -s * .9, elF: 1.5, shB: s * .9, elB: 1.5, spine: .22, bob: Math.abs(c) * 4 - 2 }); },
+  walk: (t, ph) => {
+    const a = ph * TAU, s = Math.sin(a), c = Math.cos(a);
+    // legs: swing forward, knee folds on the way through, straightens at heel strike
+    const swing = s * .5, fold = Math.max(0, -c);
+    // torso stays upright; a small counter-rotation and a level head do most of the work
+    return P({
+      hipF: swing, kneeF: fold * .85 + .05, hipB: -swing, kneeB: Math.max(0, c) * .85 + .05,
+      shF: -s * .38, elF: .28 + Math.max(0, -s) * .22, shB: s * .38, elB: .28 + Math.max(0, s) * .22,
+      spine: -.015 + Math.sin(a * 2) * .012,          // upright, tiny bounce, no permanent lean
+      head: -Math.sin(a * 2) * .035,                   // head stays level while the body bobs
+      bob: Math.abs(c) * 1.15 - .35,
+      twist: -s * .1,                                  // shoulders counter the hips
+      footF: clamp(-s, 0, 1) * .34 - fold * .2, footB: clamp(s, 0, 1) * .34 - Math.max(0, c) * .2,
+    });
+  },
+  run: (t, ph) => { const a = ph * TAU, s = Math.sin(a), c = Math.cos(a);
+    return P({ hipF: s * .9, kneeF: Math.max(0, -c) * 1.5 + .28, hipB: -s * .9, kneeB: Math.max(0, c) * 1.5 + .28,
+      shF: -s * .85, elF: 1.45, shB: s * .85, elB: 1.45, spine: .16, head: -.08 - Math.sin(a * 2) * .04,
+      bob: Math.abs(c) * 3.4 - 1.6, twist: -s * .16 }); },
   armsUp: t => P({ shF: 2.6 + Math.sin(t * 6) * .12, elF: .4, shB: 2.5 - Math.sin(t * 6) * .12, elB: .45, head: -.25, spine: -.08, hipF: .12, hipB: -.1 }),
   headDown: t => P({ head: .75, spine: .22, shF: .12, elF: .08, shB: .1, elB: .08, bob: 2, kneeF: .18, kneeB: .18 }),
   shrug: t => P({ shF: .7, elF: 1.9, shB: .6, elB: 1.9, shrug: 1, head: -.1, spine: -.04 }),
@@ -473,7 +485,7 @@ class Actor {
     }
     // personal gait: stride, arm swing, bounce, slouch, head carriage
     if (this.moving && !this.emote) { target.hipF *= g.stride; target.hipB *= g.stride; target.kneeF = (target.kneeF - .08) * g.kneeLift + .08; target.kneeB = (target.kneeB - .08) * g.kneeLift + .08; target.shF *= g.armSwing; target.shB *= g.armSwing; target.elF = .12 + (target.elF - .12) * g.armSwing; target.elB = .12 + (target.elB - .12) * g.armSwing; target.bob *= g.bounce; target.spine += g.sway * Math.sin(this.phase * TAU * 2) * .02; }
-    if (!target.sit) { target.spine += g.slouch * (this.emote ? .4 : 1); target.head += g.headTilt * (this.emote ? .4 : 1); if (g.slouch > .1) { target.shF += g.slouch * .3; target.shB += g.slouch * .3; } }
+    if (!target.sit && !target.lie) { const m = this.emote ? .4 : this.moving ? .55 : 1; target.spine += g.slouch * m; target.head += g.headTilt * m; if (g.slouch > .08) { target.shF += g.slouch * .25; target.shB += g.slouch * .25; } }
     const k = 1 - Math.pow(0.0005, dt);
     this.pose = blendPose(this.pose, target, k);
     // expression blend
@@ -492,7 +504,7 @@ class Actor {
       const a = hip - knee; const ax = kx + Math.sin(a) * this.shin, ay = ky + Math.cos(a) * this.shin;
       return { kx, ky, ax, ay, a, foot };
     };
-    const shx = pel.x + Math.sin(p.spine) * this.torso, shy = pel.y - Math.cos(p.spine) * this.torso - p.shrug * this.h * .02;
+    const shx = pel.x + Math.sin(p.spine) * this.torso + (p.twist || 0) * this.shW, shy = pel.y - Math.cos(p.spine) * this.torso - p.shrug * this.h * .02;
     const arm = (sh, el) => {
       const ex = shx + Math.sin(sh) * this.upper, ey = shy + Math.cos(sh) * this.upper;
       const a = sh + el; return { ex, ey, hx: ex + Math.sin(a) * this.fore, hy: ey + Math.cos(a) * this.fore, a };
@@ -829,6 +841,57 @@ function buildCity() { return City.home(); }
 // traffic light phase: 0..1 over a 24s cycle. ew green [0,.4), yellow [.4,.5), ns green [.5,.9), yellow [.9,1)
 function lightPhase(clock) { return ((clock * 50) % 24) / 24; }
 function lightFor(dir, clock) { const p = lightPhase(clock); if (dir === 'ew') return p < .4 ? 'green' : p < .5 ? 'yellow' : 'red'; return p < .5 ? 'red' : p < .9 ? 'green' : 'yellow'; }
+// ---------- texture engine ----------
+// Surfaces are painted procedurally from a seed: grain, grime, stains, cracks, patches.
+// Nothing is a flat rectangle, and no two walls come out the same.
+const Tex = {
+  cache: {},
+  // deterministic value noise
+  n(x, y, s) { return hash2(Math.floor(x) * 73856093 ^ (s || 0), Math.floor(y) * 19349663); },
+  // build a small tile once per (style,seed) and repeat it — cheap and stable
+  tile(style, seed, base, w, h) {
+    const key = style + '|' + seed + '|' + base + '|' + w + 'x' + h;
+    if (this.cache[key]) return this.cache[key];
+    if (typeof document === 'undefined' && typeof OffscreenCanvas === 'undefined') return null;
+    let cv; try { cv = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(w, h) : document.createElement('canvas'); } catch (e) { return null; }
+    cv.width = w; cv.height = h; const c = cv.getContext('2d');
+    const r = RNG(seed * 2654435761 + style.length * 97);
+    c.fillStyle = base; c.fillRect(0, 0, w, h);
+    const speck = (n, a, col, sz) => { c.fillStyle = col; for (let i = 0; i < n; i++) { c.globalAlpha = a * (.4 + r() * .6); c.fillRect(r() * w, r() * h, sz * (.5 + r()), sz * (.5 + r())); } c.globalAlpha = 1; };
+    if (style === 'plaster') { speck(260, .06, '#000', 2); speck(160, .05, '#fff', 2);
+      for (let i = 0; i < 5; i++) { c.globalAlpha = .05 + r() * .06; c.fillStyle = '#000'; c.beginPath(); c.ellipse(r() * w, r() * h, 12 + r() * 40, 8 + r() * 26, r() * 3, 0, TAU); c.fill(); } c.globalAlpha = 1;
+      c.strokeStyle = 'rgba(0,0,0,.14)'; c.lineWidth = 1; for (let i = 0; i < 3; i++) { let x = r() * w, y = r() * h; c.beginPath(); c.moveTo(x, y); for (let k = 0; k < 5; k++) { x += (r() - .5) * 24; y += r() * 18; c.lineTo(x, y); } c.stroke(); } }
+    else if (style === 'concrete') { speck(400, .07, '#000', 2); speck(200, .05, '#fff', 3);
+      for (let i = 0; i < 6; i++) { c.globalAlpha = .06; c.fillStyle = r() < .5 ? '#000' : '#fff'; c.fillRect(r() * w, r() * h, 20 + r() * 60, 14 + r() * 40); } c.globalAlpha = 1; }
+    else if (style === 'tile') { const t = 26; c.strokeStyle = 'rgba(0,0,0,.18)'; c.lineWidth = 1.4;
+      for (let x = 0; x <= w; x += t) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, h); c.stroke(); }
+      for (let y = 0; y <= h; y += t) { c.beginPath(); c.moveTo(0, y); c.lineTo(w, y); c.stroke(); }
+      for (let x = 0; x < w; x += t) for (let y = 0; y < h; y += t) { c.globalAlpha = .04 + r() * .07; c.fillStyle = r() < .5 ? '#000' : '#fff'; c.fillRect(x + 1, y + 1, t - 2, t - 2); } c.globalAlpha = 1; speck(120, .05, '#000', 2); }
+    else if (style === 'wood') { c.strokeStyle = 'rgba(0,0,0,.2)'; c.lineWidth = 1.2;
+      for (let y = 0; y < h; y += 14) { c.beginPath(); c.moveTo(0, y); c.lineTo(w, y); c.stroke(); c.globalAlpha = .05 + r() * .08; c.fillStyle = r() < .5 ? '#000' : '#fff'; c.fillRect(0, y, w, 14); c.globalAlpha = 1;
+        for (let i = 0; i < 3; i++) { c.strokeStyle = 'rgba(0,0,0,.12)'; c.beginPath(); const yy = y + 3 + r() * 8; c.moveTo(0, yy); c.bezierCurveTo(w * .3, yy + (r() - .5) * 4, w * .6, yy + (r() - .5) * 4, w, yy + (r() - .5) * 3); c.stroke(); c.strokeStyle = 'rgba(0,0,0,.2)'; } }
+      for (let x = 0; x < w; x += 60 + r() * 50) { c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(x, 0, 1.5, h); } }
+    else if (style === 'brickwall') { const bw = 28, bh = 12; for (let y = 0, row = 0; y < h; y += bh, row++) for (let x = (row % 2) * bw / 2 - bw; x < w; x += bw) { c.globalAlpha = .06 + r() * .1; c.fillStyle = r() < .45 ? '#000' : '#fff'; c.fillRect(x + 1, y + 1, bw - 2, bh - 2); } c.globalAlpha = 1;
+      c.strokeStyle = 'rgba(0,0,0,.22)'; c.lineWidth = 1; for (let y = 0; y < h; y += bh) { c.beginPath(); c.moveTo(0, y); c.lineTo(w, y); c.stroke(); } }
+    else if (style === 'grime') { c.clearRect(0, 0, w, h); for (let i = 0; i < 26; i++) { const g2 = c.createRadialGradient(r() * w, r() * h, 0, r() * w, r() * h, 10 + r() * 50); g2.addColorStop(0, `rgba(0,0,0,${.05 + r() * .1})`); g2.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = g2; c.fillRect(0, 0, w, h); } }
+    const pat = { canvas: cv };
+    this.cache[key] = pat; return pat;
+  },
+  // paint a textured surface
+  paint(ctx, style, seed, base, x, y, w, h) {
+    ctx.fillStyle = base; ctx.fillRect(x, y, w, h);
+    const t = this.tile(style, seed, base, 128, 128); if (!t) return;
+    const p = ctx.createPattern(t.canvas, 'repeat'); if (!p) return;
+    ctx.save(); ctx.translate(x, y); ctx.fillStyle = p; ctx.fillRect(0, 0, w, h); ctx.restore();
+  },
+  // dirt streaks running down from a ledge
+  streaks(ctx, x, y, w, h, seed, a) {
+    ctx.save(); ctx.globalAlpha = a || .1; ctx.fillStyle = '#000';
+    for (let i = 0; i < 9; i++) { const sx = x + this.n(i, 1, seed) * w, sw = 2 + this.n(i, 2, seed) * 7, sh = h * (.2 + this.n(i, 3, seed) * .8); ctx.fillRect(sx, y, sw, sh); }
+    ctx.restore();
+  },
+};
+
 // ---------- lighting ----------
 // Scene is drawn dim, then a light buffer is composited additively. Every lamp,
 // shop window, neon sign, headlight and lit apartment registers a light each frame.
@@ -950,6 +1013,12 @@ function drawBuilding(ctx, b, pal, zoom, isPlayerFloor) {
   // silhouette with drop shadow
   const slab = (dx, dy, col) => { ctx.fillStyle = col; if (b.setback) { const sy = -b.setback.at * FLOOR_H; ctx.fillRect(b.x + dx, sy + dy, b.w, b.h - (-sy) + 0); ctx.fillRect(xAt(b.setback.at) + dx, -b.h + dy, widthAt(b.setback.at), -sy - b.h * 0 + b.h + sy); } else ctx.fillRect(b.x + dx, -b.h + dy, b.w, b.h); };
   slab(10, 10, 'rgba(0,0,0,.35)'); slab(0, 0, base);
+  if (zoom > .13) { // surface texture + weathering, unique per building
+    const tx = st === 'brick' ? 'brickwall' : st === 'glass' || st === 'dark' ? null : 'concrete';
+    if (tx) Tex.paint(ctx, tx, b.id, base, xAt(0), -b.h, widthAt(0), b.h);
+    Tex.streaks(ctx, b.x, -b.h + 10, b.w, b.h * .35, b.id, .09);
+    if (hash2(b.id, 41) < .35) { ctx.save(); ctx.globalAlpha = .1; ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(b.x + b.w * hash2(b.id, 5), -b.h * hash2(b.id, 6), b.w * .3, b.h * .1, 0, 0, TAU); ctx.fill(); ctx.restore(); }
+  }
   const detail = FLOOR_H * zoom, cols = b.cols, winW = b.w / cols;
   if (detail < 1.6) {
     // far: faint floor bands + sparse lit dots
@@ -1053,10 +1122,19 @@ function drawAlley(ctx, city, pal, zoom) {
 }
 function drawStreet(ctx, city, pal, zoom, cam) {
   const b = cam.bounds(), x0 = b.x0 - 10, x1 = b.x1 + 10;
-  ctx.fillStyle = '#3a3d52'; ctx.fillRect(x0, GROUND, x1 - x0, WALK_DEPTH + 6);
+  Tex.paint(ctx, 'tile', 3, '#3a3d52', x0, GROUND, x1 - x0, WALK_DEPTH + 6);
   ctx.fillStyle = '#4a4d62'; ctx.fillRect(x0, GROUND, x1 - x0, 3);
+  if (zoom > .3) { // cracks, patches, gum, stains on the pavement
+    for (let x = Math.floor(x0 / 160) * 160; x < x1; x += 160) { const k = hash2(x, 17);
+      if (k < .3) { ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; ctx.beginPath(); let cx2 = x, cy = GROUND + 6; ctx.moveTo(cx2, cy); for (let i = 0; i < 4; i++) { cx2 += (hash2(x, i) - .5) * 26; cy += hash2(x, i + 9) * 10; ctx.lineTo(cx2, cy); } ctx.stroke(); }
+      if (k > .5) { ctx.fillStyle = `rgba(0,0,0,${.05 + hash2(x, 4) * .08})`; ctx.beginPath(); ctx.ellipse(x + 40, GROUND + 10 + hash2(x, 6) * 22, 14 + hash2(x, 7) * 22, 5 + hash2(x, 8) * 6, 0, 0, TAU); ctx.fill(); }
+      if (k > .78) { ctx.fillStyle = 'rgba(20,20,26,.35)'; ctx.beginPath(); ctx.arc(x + 90, GROUND + 14 + hash2(x, 3) * 20, 2.2, 0, TAU); ctx.fill(); }
+    }
+  }
   if (zoom > .3) { ctx.fillStyle = 'rgba(0,0,0,.15)'; for (let x = Math.floor(x0 / 96) * 96; x < x1; x += 96) ctx.fillRect(x, GROUND, 2, WALK_DEPTH + 6); }
-  ctx.fillStyle = '#1a1c2c'; ctx.fillRect(x0, ROAD_Y, x1 - x0, ROAD_H);
+  Tex.paint(ctx, 'concrete', 9, '#1a1c2c', x0, ROAD_Y, x1 - x0, ROAD_H);
+  if (zoom > .25) { ctx.fillStyle = 'rgba(0,0,0,.35)'; for (let x = Math.floor(x0 / 240) * 240; x < x1; x += 240) { const k = hash2(x, 21); if (k < .4) { ctx.beginPath(); ctx.ellipse(x, ROAD_Y + ROAD_H * (.3 + k), 22 + k * 30, 5, 0, 0, TAU); ctx.fill(); } if (k > .7) { ctx.fillStyle = '#2a2c3a'; ctx.fillRect(x + 30, ROAD_Y + ROAD_H * .55, 50, 6); ctx.fillStyle = 'rgba(0,0,0,.35)'; } }
+    for (let x = Math.floor(x0 / 900) * 900; x < x1; x += 900) { ctx.fillStyle = '#23252f'; ctx.beginPath(); ctx.ellipse(x + 300, ROAD_Y + ROAD_H * .62, 22, 8, 0, 0, TAU); ctx.fill(); ctx.fillStyle = 'rgba(255,255,255,.05)'; ctx.beginPath(); ctx.ellipse(x + 300, ROAD_Y + ROAD_H * .62 - 1, 22, 8, 0, Math.PI, TAU); ctx.fill(); } }
   ctx.fillStyle = '#c9b45a'; for (let x = Math.floor(x0 / 70) * 70; x < x1; x += 70) ctx.fillRect(x, ROAD_Y + ROAD_H / 2 - 1.5, 40, 3);
   ctx.fillStyle = '#2f3246'; ctx.fillRect(x0, ROAD_Y + ROAD_H, x1 - x0, 30);
   ctx.fillStyle = '#0a0c16'; ctx.fillRect(x0, ROAD_Y + ROAD_H + 30, x1 - x0, 40000);
@@ -1348,7 +1426,7 @@ const UI = {
     if (!turning) for (let i = 0; i < n; i++) { const x = ix + i * (sw + gap); this.panel(ctx, x, iy, sw, sw, 6, 'rgba(242,236,223,.8)'); const it = G.inv[i]; if (it) { ctx.fillStyle = it.col || '#3d4150'; ctx.beginPath(); ctx.roundRect(x + 8, iy + 8, sw - 16, sw - 16, 4); ctx.fill(); ctx.fillStyle = '#1c1a24'; ctx.font = `10px ${FONT}`; ctx.textAlign = 'center'; ctx.fillText(it.name, x + sw / 2, iy + sw - 7); } }
     const bx = W - 56, by = H - 190;
     if (!G.scene.noZoom && !turning) { this.button(ctx, 'zoomIn', bx, by, 44, 44, '+'); this.button(ctx, 'zoomOut', bx, by + 52, 44, 44, '–'); this.button(ctx, 'zoomFit', bx, by + 104, 44, 44, '⌖'); }
-    if (!turning) this.button(ctx, 'emotes', 12, H - 62, 78, 44, this.panelOpen ? 'Close' : 'Pose');
+    if (!turning) { this.button(ctx, 'emotes', 12, H - 62, 78, 44, this.panelOpen ? 'Close' : 'Pose'); this.button(ctx, 'mute', W - 56, 56, 44, 34, Music.on ? '♪' : '✕', true); }
     if (this.prompt && !turning) this.button(ctx, 'act', 100, H - 62, mobile ? 120 : 160, 44, this.prompt, false, '#ffe6a8');
     if (this.panelOpen) { const px = 12, py = H - 62 - 10 - (mobile ? 2 : 1) * 46, cols = mobile ? 5 : 10, bw = mobile ? 56 : 62; EMOTES.forEach((e, i) => { const r = Math.floor(i / cols), c = i % cols; this.button(ctx, 'emote:' + e.name, px + c * (bw + 5), py + r * 46, bw, 40, e.label, true); }); }
     if (turning) { ctx.restore(); return; }
@@ -1365,6 +1443,77 @@ const UI = {
   }
 };
 
+// ---- 07b_music.js
+// ===== ambient score =====
+// Small procedural loops built from the same oscillator helper as the street sounds.
+// Each scene gets a mode, tempo and instrument colour; nothing is sampled or streamed.
+const SCALES = {
+  minor: [0, 2, 3, 5, 7, 8, 10], dorian: [0, 2, 3, 5, 7, 9, 10], lydian: [0, 2, 4, 6, 7, 9, 11],
+  penta: [0, 3, 5, 7, 10], major: [0, 2, 4, 5, 7, 9, 11], phryg: [0, 1, 3, 5, 7, 8, 10],
+};
+const THEMES = {
+  apartment: { root: 48, scale: 'penta', bpm: 64, wave: 'sine', vol: .05, bass: .5, density: .45, pad: true },
+  street:    { root: 45, scale: 'dorian', bpm: 84, wave: 'triangle', vol: .045, bass: .8, density: .7 },
+  nightlife: { root: 43, scale: 'minor', bpm: 112, wave: 'sawtooth', vol: .04, bass: 1, density: .95, kick: true },
+  quiet:     { root: 50, scale: 'penta', bpm: 58, wave: 'sine', vol: .035, bass: .35, density: .35, pad: true },
+  industrial:{ root: 40, scale: 'phryg', bpm: 68, wave: 'square', vol: .03, bass: .6, density: .3 },
+  hall:      { root: 46, scale: 'minor', bpm: 60, wave: 'sine', vol: .03, bass: .3, density: .3, pad: true },
+  stairs:    { root: 38, scale: 'phryg', bpm: 52, wave: 'sine', vol: .028, bass: .4, density: .22, pad: true },
+  lobby:     { root: 52, scale: 'major', bpm: 74, wave: 'triangle', vol: .035, bass: .45, density: .5 },
+  elevator:  { root: 55, scale: 'major', bpm: 92, wave: 'sine', vol: .045, bass: .35, density: .8 },
+  airport:   { root: 50, scale: 'lydian', bpm: 70, wave: 'sine', vol: .035, bass: .4, density: .45, pad: true },
+  flight:    { root: 53, scale: 'lydian', bpm: 66, wave: 'sine', vol: .04, bass: .3, density: .5, pad: true },
+  landmark:  { root: 47, scale: 'major', bpm: 76, wave: 'triangle', vol: .04, bass: .5, density: .55 },
+  roof:      { root: 44, scale: 'dorian', bpm: 56, wave: 'sine', vol: .04, bass: .4, density: .3, pad: true },
+};
+const Music = {
+  on: true, theme: null, name: '', step: 0, acc: 0, padT: 0, gain: 1,
+  hz(n) { return 440 * Math.pow(2, (n - 69) / 12); },
+  note(n, dur, wave, vol) {
+    if (!Sfx.ok || !this.on) return;
+    try {
+      const c = Sfx.ctx, o = c.createOscillator(), g = c.createGain(), f = c.createBiquadFilter();
+      o.type = wave; o.frequency.value = this.hz(n);
+      f.type = 'lowpass'; f.frequency.value = 1400;
+      g.gain.setValueAtTime(0, c.currentTime);
+      g.gain.linearRampToValueAtTime(vol * this.gain, c.currentTime + .04);
+      g.gain.exponentialRampToValueAtTime(.0001, c.currentTime + dur);
+      o.connect(f); f.connect(g); g.connect(c.destination); o.start(); o.stop(c.currentTime + dur + .02);
+    } catch (e) {}
+  },
+  thud(vol) { if (!Sfx.ok || !this.on) return; try { const c = Sfx.ctx, o = c.createOscillator(), g = c.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(120, c.currentTime); o.frequency.exponentialRampToValueAtTime(42, c.currentTime + .16); g.gain.setValueAtTime(vol * this.gain, c.currentTime); g.gain.exponentialRampToValueAtTime(.0001, c.currentTime + .22); o.connect(g); g.connect(c.destination); o.start(); o.stop(c.currentTime + .24); } catch (e) {} },
+  setTheme(name) { if (name === this.name) return; this.name = name; this.theme = THEMES[name] || THEMES.street; this.step = 0; this.acc = 0; },
+  update(dt) {
+    if (!this.on || !Sfx.ok || !this.theme) return;
+    const T = this.theme, beat = 60 / T.bpm / 2;   // eighth notes
+    this.acc += dt;
+    while (this.acc >= beat) {
+      this.acc -= beat; const st = this.step++;
+      const sc = SCALES[T.scale], bar = Math.floor(st / 8) % 4;
+      const chordRoot = [0, 5, 3, 7][bar];
+      if (st % 8 === 0) this.note(T.root - 12 + chordRoot, beat * 7, 'sine', .07 * T.bass);
+      if (T.kick && st % 4 === 0) this.thud(.09);
+      if (T.pad && st % 16 === 0) { this.note(T.root + chordRoot, beat * 14, 'sine', .022); this.note(T.root + chordRoot + sc[2], beat * 14, 'sine', .018); }
+      const r = hash2(st * 13, this.name.length * 7 + bar);
+      if (r < T.density) {
+        const deg = Math.floor(hash2(st * 7, bar + 3) * sc.length);
+        const oct = hash2(st, bar) < .3 ? 12 : 0;
+        this.note(T.root + chordRoot + sc[deg] + oct, beat * (1.4 + hash2(st, 9) * 1.6), T.wave, T.vol);
+      }
+      if (st % 8 === 6 && hash2(st, 5) < .4) this.note(T.root + 12 + chordRoot + sc[4], beat * 2, T.wave, T.vol * .6);
+    }
+  },
+  // pick the theme from the scene, and on the street from the street's character
+  follow(G) {
+    if (!G.scene) return;
+    const n = G.scene.name;
+    if (n === 'street' || n === 'balcony') {
+      const f = G.city ? G.city.feature : 'downtown';
+      this.setTheme(f === 'nightlife' || f === 'theater' ? 'nightlife' : f === 'quiet' || f === 'finance' ? 'quiet' : f === 'industrial' || f === 'construction' ? 'industrial' : 'street');
+    } else this.setTheme(THEMES[n] ? n : 'street');
+  },
+};
+
 // ---- 08_scenes.js
 // ===== scenes =====
 // Each scene owns a coordinate space with the floor at y=0. Interiors are side-view rooms.
@@ -1375,10 +1524,15 @@ const glow = (ctx, x, y, r, col, a) => { const g = ctx.createRadialGradient(x, y
 const WARM = 'rgba(255,225,160,A)';
 const WARM_L = '255,225,160';
 
-function roomBase(ctx, w, wall, floor, trim) {
-  cut(ctx, wall, -200, -FLOOR_H * 2.4, w + 400, FLOOR_H * 2.4);
-  cut(ctx, shade(wall, .8), -200, -FLOOR_H * 2.4, w + 400, FLOOR_H * .6);
-  cut(ctx, floor, -200, 0, w + 400, ROOM_DEPTH + 8);
+function roomBase(ctx, w, wall, floor, trim, opt) {
+  opt = opt || {};
+  const seed = opt.seed || (w * 31 + wall.length * 7);
+  Tex.paint(ctx, opt.wallTex || 'plaster', seed, wall, -200, -FLOOR_H * 2.4, w + 400, FLOOR_H * 2.4);
+  cut(ctx, shade(wall, .82), -200, -FLOOR_H * 2.4, w + 400, FLOOR_H * .6);
+  Tex.paint(ctx, opt.floorTex || 'wood', seed + 5, floor, -200, 0, w + 400, ROOM_DEPTH + 8);
+  // scuffs along the bottom of the wall and grime in the corners
+  Tex.streaks(ctx, -200, -FLOOR_H * 1.1, w + 400, FLOOR_H * .5, seed, .07);
+  const g = ctx.createLinearGradient(0, -80, 0, 0); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.18)'); ctx.fillStyle = g; ctx.fillRect(-200, -80, w + 400, 80);
   cut(ctx, trim || shade(wall, .7), -200, -10, w + 400, 10);
   cut(ctx, '#05060c', -200, ROOM_DEPTH + 8, w + 400, 4000);
 }
@@ -1443,7 +1597,7 @@ const LobbyScene = {
   draw(G, ctx, cam, pal) {
     ctx.fillStyle = '#0a0c18'; ctx.fillRect(0, 0, cam.w, cam.h);
     cam.begin(ctx); inkW(cam.zoom);
-    roomBase(ctx, this.w, '#2c2a3e', '#3b3548', '#1f1d2c');
+    roomBase(ctx, this.w, '#2c2a3e', '#3b3548', '#1f1d2c', { seed: 11, wallTex: 'plaster', floorTex: 'tile' });
     // marble floor pattern
     ctx.fillStyle = 'rgba(255,255,255,.05)'; for (let x = 0; x < this.w; x += 80) ctx.fillRect(x, 0, 40, ROOM_DEPTH + 8);
     // street door with night outside
@@ -1548,7 +1702,7 @@ const HallScene = {
   draw(G, ctx, cam, pal) {
     ctx.fillStyle = '#0a0c18'; ctx.fillRect(0, 0, cam.w, cam.h);
     cam.begin(ctx); inkW(cam.zoom);
-    roomBase(ctx, this.w, '#3e3a52', '#5a2f3a', '#2a2438');
+    roomBase(ctx, this.w, '#3e3a52', '#5a2f3a', '#2a2438', { seed: 23 + G.floor, wallTex: 'plaster', floorTex: 'tile' });
     ctx.fillStyle = 'rgba(0,0,0,.15)'; for (let x = 0; x < this.w; x += 60) ctx.fillRect(x, 0, 30, ROOM_DEPTH + 8);
     cut(ctx, '#2a2c3a', 60, -FLOOR_H, 48, FLOOR_H); cut(ctx, '#2a2c3a', 112, -FLOOR_H, 48, FLOOR_H); cut(ctx, '#b8a068', 108, -FLOOR_H, 6, FLOOR_H);
     ctx.fillStyle = '#ff9a3a'; ctx.font = `bold 12px ${FONT}`; ctx.textAlign = 'center'; ctx.fillText(G.elevatorFloorLabel(), 110, -FLOOR_H - 10);
@@ -1589,7 +1743,7 @@ const ApartmentScene = {
   draw(G, ctx, cam, pal) {
     ctx.fillStyle = '#0a0c18'; ctx.fillRect(0, 0, cam.w, cam.h);
     cam.begin(ctx); inkW(cam.zoom);
-    roomBase(ctx, this.w, '#453d55', '#6a4a36', '#2f2a3a');
+    roomBase(ctx, this.w, '#453d55', '#6a4a36', '#2f2a3a', { seed: 41, wallTex: 'plaster', floorTex: 'wood' });
     // floorboards + rug
     ctx.fillStyle = 'rgba(0,0,0,.12)'; for (let x = 0; x < this.w; x += 46) ctx.fillRect(x, 0, 2, ROOM_DEPTH + 8);
     cut(ctx, '#6a3a4a', 560, 2, 300, ROOM_DEPTH + 4); cut(ctx, '#7a4a5a', 580, 5, 260, ROOM_DEPTH - 2);
@@ -1663,7 +1817,7 @@ const StairScene = {
   draw(G, ctx, cam, pal) {
     ctx.fillStyle = '#07090f'; ctx.fillRect(0, 0, cam.w, cam.h);
     cam.begin(ctx); inkW(cam.zoom);
-    roomBase(ctx, this.w, '#2f3238', '#3a3d44', '#222429');
+    roomBase(ctx, this.w, '#2f3238', '#3a3d44', '#222429', { seed: 60 + G.floor, wallTex: 'concrete', floorTex: 'concrete' });
     ctx.fillStyle = 'rgba(0,0,0,.2)'; for (let x = 0; x < this.w; x += 50) ctx.fillRect(x, 0, 25, ROOM_DEPTH + 8);
     // flights going up on the right, down on the left
     const flight = (x0, dir) => { for (let i = 0; i < 7; i++) { const x = x0 + dir * i * 22, y = -i * 18; cut(ctx, '#4a4d55', x, y - 18, 22, 18); cut(ctx, '#3a3d44', x, y - 20, 22, 3); }
@@ -2006,7 +2160,9 @@ const Game = {
   openElevator(from) { this.elevatorFrom = from; this.go('elevator', from); },
   elevatorFloorLabel() { return this.scene === ElevatorScene ? '' : this.floor === 0 ? 'L' : this.floor === 99 ? 'R' : String(this.floor); },
   update(dt) {
-    Input.update(); UI.update(dt); this.clock += dt / 50; if (!Sfx.ok && (Input.tap || Object.values(Input.pressed).some(Boolean))) Sfx.init();
+    Input.update(); UI.update(dt); this.clock += dt / 50;
+    if (!Sfx.ok && (Input.tap || Object.values(Input.pressed).some(Boolean))) Sfx.init();
+    Music.follow(this); Music.update(dt);
     const p = this.player;
     if (!this.scene.noZoom && !Camera.seq) {
       if (Input.wheel) Camera.zoomBy(Math.pow(1.0018, -Input.wheel));
@@ -2018,6 +2174,7 @@ const Game = {
       const id = UI.hit(Input.tap);
       if (id === 'zoomIn') Camera.setStop(Camera.stopIndex - 1); else if (id === 'zoomOut') Camera.setStop(Camera.stopIndex + 1); else if (id === 'zoomFit') Camera.setStop(1);
       else if (id === 'emotes') UI.panelOpen = !UI.panelOpen;
+      else if (id === 'mute') { Music.on = !Music.on; UI.say(Music.on ? 'Music on' : 'Music off', 1.2); }
       else if (id === 'act' && this.action) this.action();
       else if (id && id.startsWith('emote:')) p.setEmote(id.slice(6), 2.4);
       if (id && !(id.startsWith('fl:') || id === 'esc')) Input.tap = null;
@@ -2025,6 +2182,7 @@ const Game = {
     if (this.cinema) { this.updateIntro(dt); Input.endFrame(); return; }
     if (this.state === 'play' && !this.fadeDir) {
       for (const e of EMOTES) if (Input.consume('Digit' + e.key)) p.setEmote(e.name, 2.4);
+      if (Input.consume('KeyM')) { Music.on = !Music.on; UI.say(Music.on ? 'Music on' : 'Music off', 1.2); }
       if (this.scene !== ElevatorScene && (Input.consume('KeyE') || Input.consume('Space') || Input.consume('Enter')) && this.action) this.action();
       this.scene.update(this, dt);
     } else if (this.scene === ElevatorScene) this.scene.update(this, dt);
