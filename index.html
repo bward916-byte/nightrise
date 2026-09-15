@@ -1422,7 +1422,7 @@ const UI = {
   },
   hit(p) { for (let i = this.buttons.length - 1; i >= 0; i--) { const b = this.buttons[i]; if (p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) return b.id; } return null; },
   draw(ctx, G) {
-    this.buttons = []; const W = Camera.w, H = Camera.h, mobile = W < 700;
+    const W = Camera.w, H = Camera.h, mobile = W < 700;
     ctx.save(); ctx.textBaseline = 'middle';
     this.panel(ctx, 12, 12, 150, 38); ctx.fillStyle = '#1c1a24'; ctx.font = `bold 17px ${FONT}`; ctx.textAlign = 'left'; ctx.fillText('$' + G.cash.toLocaleString(), 24, 31);
     const hr = G.hour() % 24, h12 = ((Math.floor(hr) + 11) % 12) + 1, mn = Math.floor((hr % 1) * 60); ctx.font = `12px ${FONT}`; ctx.textAlign = 'right'; ctx.fillText(`${h12}:${mn < 10 ? '0' : ''}${mn}${Math.floor(hr) % 24 >= 12 ? 'pm' : 'am'}`, 152, 31);
@@ -1446,9 +1446,8 @@ const UI = {
     }
     const bx = W - 56, by = H - 190;
     if (!G.scene.noZoom && !turning) { this.button(ctx, 'zoomIn', bx, by, 44, 44, '+'); this.button(ctx, 'zoomOut', bx, by + 52, 44, 44, '–'); this.button(ctx, 'zoomFit', bx, by + 104, 44, 44, '⌖'); }
-    if (!turning) { this.button(ctx, 'emotes', 12, H - 62, 64, 44, this.panelOpen ? 'Close' : 'Pose'); this.button(ctx, 'pack', 82, H - 62, 64, 44, this.packOpen ? 'Close' : 'Pack'); this.button(ctx, 'mute', W - 56, 56, 44, 34, Music.on ? '♪' : '✕', true); }
-    if (this.prompt && !turning) this.button(ctx, 'act', 154, H - 62, mobile ? Math.min(150, W - 220) : 170, 44, this.prompt, false, '#ffe6a8');
-    if (this.panelOpen) { const px = 12, py = H - 62 - 10 - (mobile ? 2 : 1) * 46, cols = mobile ? 5 : 10, bw = mobile ? 56 : 62; EMOTES.forEach((e, i) => { const r = Math.floor(i / cols), c = i % cols; this.button(ctx, 'emote:' + e.name, px + c * (bw + 5), py + r * 46, bw, 40, e.label, true); }); }
+    if (!turning) { this.button(ctx, 'pack', 12, H - 62, 64, 44, this.packOpen ? 'Close' : 'Pack'); this.button(ctx, 'mute', W - 56, 56, 44, 34, Music.on ? '♪' : '✕', true); }
+    if (this.prompt && !turning) this.button(ctx, 'act', 84, H - 62, mobile ? Math.min(180, W - 160) : 190, 44, this.prompt, false, '#ffe6a8');
     if (this.hintT > 0 && this.hint) { ctx.globalAlpha = Math.min(1, this.hintT * 2); ctx.font = `15px ${FONT}`; const w = Math.min(W - 24, ctx.measureText(this.hint).width + 28); this.panel(ctx, W / 2 - w / 2, 62, w, 34, 17); ctx.fillStyle = '#1c1a24'; ctx.textAlign = 'center'; ctx.fillText(this.hint, W / 2, 79, w - 20); ctx.globalAlpha = 1; }
     if (this.toast) { ctx.font = `14px ${FONT}`; const w = Math.min(W - 40, ctx.measureText(this.toast.t).width + 28), ty = H - 62 - 46 - (this.packOpen ? 130 : 0); this.panel(ctx, W / 2 - w / 2, ty, w, 32, 16, '#ffe6a8'); ctx.fillStyle = '#1c1a24'; ctx.textAlign = 'center'; ctx.fillText(this.toast.t, W / 2, ty + 16, w - 16); }
     ctx.restore();
@@ -1837,18 +1836,19 @@ const LobbyScene = {
 // ---------- ELEVATOR PANEL + RIDE ----------
 const ElevatorScene = {
   name: 'elevator', where: 'Elevator', noZoom: true, sel: 83, mode: 'panel', t: 0, from: 83, to: 83, cur: 83, doors: 0,
-  enter(G, from) { this.mode = 'panel'; this.t = 0; this.doors = 1; Camera.locked = true; this.sel = G.floor === 83 ? 0 : 83; },
-  floors() { const f = [0]; for (let i = 2; i <= TOWER.floors; i++) f.push(i); f.push(99); return f; },
+  enter(G, from) { this.mode = 'panel'; this.t = 0; this.doors = 1; Camera.locked = true; this.sel = G.floor === PLAYER_FLOOR ? 0 : PLAYER_FLOOR; if (this.sel === -1) this.sel = 0; },
+  // only the floors you have business on: lobby, home, roof, plus anything unlocked later
+  floors() { const f = [0, PLAYER_FLOOR]; for (const x of (typeof Game !== 'undefined' && Game.unlockedFloors) || []) if (!f.includes(x)) f.push(x); f.sort((a, b) => a - b); f.push(99); return f; },
+  labelFor(f) { return f === 0 ? 'Lobby' : f === 99 ? 'Roof' : f === PLAYER_FLOOR ? 'Home · 83' : 'Floor ' + f; },
   label(f) { return f === 0 ? 'L' : f === 99 ? 'R' : String(f); },
   update(G, dt) {
     this.t += dt;
     if (this.mode === 'panel') {
       const list = this.floors(); let i = list.indexOf(this.sel);
-      const cols = Camera.w < 700 ? 8 : 12;
       if (Input.consume('ArrowRight') || Input.consume('KeyD')) i = Math.min(list.length - 1, i + 1);
       if (Input.consume('ArrowLeft') || Input.consume('KeyA')) i = Math.max(0, i - 1);
-      if (Input.consume('ArrowDown') || Input.consume('KeyS')) i = Math.min(list.length - 1, i + cols);
-      if (Input.consume('ArrowUp') || Input.consume('KeyW')) i = Math.max(0, i - cols);
+      if (Input.consume('ArrowDown') || Input.consume('KeyS')) i = Math.min(list.length - 1, i + 1);
+      if (Input.consume('ArrowUp') || Input.consume('KeyW')) i = Math.max(0, i - 1);
       this.sel = list[i];
       if (Input.consume('Space') || Input.consume('Enter') || Input.consume('KeyE')) this.pick(G, this.sel);
       if (Input.consume('Escape')) G.go(G.elevatorFrom, 'elevator');
@@ -1882,14 +1882,12 @@ const ElevatorScene = {
     // the guy inside
     ctx.save(); ctx.translate(cx + cw / 2, bot - 60); ctx.scale(2.4, 2.4); const p = G.player; const sx = p.x, sy = p.y, sf = p.facing; p.x = 0; p.y = 0; p.facing = 1; inkW(2.4); p.draw(ctx, 2.4); p.x = sx; p.y = sy; p.facing = sf; ctx.restore();
     if (this.mode === 'panel') {
-      // button panel overlay on the right wall
-      const list = this.floors(), cols = W < 700 ? 8 : 12, bw = W < 700 ? 34 : 38, gap = 6;
-      const pw = cols * (bw + gap) + 20, ph = Math.ceil(list.length / cols) * (bw + gap) + 60;
-      const px = W / 2 - pw / 2, py = Math.max(top + 70, H / 2 - ph / 2);
+      // brass panel: one big button per reachable floor
+      const list = this.floors(), bh = 46, gap = 8, pw = Math.min(W - 40, 300), ph = list.length * (bh + gap) + 70, px = W / 2 - pw / 2, py = Math.max(top + 70, H / 2 - ph / 2);
       shadowCut(ctx, '#b8a068', px, py, pw, ph, 8);
       ctx.fillStyle = '#2a2436'; ctx.font = `bold 14px ${FONT}`; ctx.textAlign = 'center'; ctx.fillText('SELECT FLOOR', px + pw / 2, py + 22);
-      list.forEach((f, i) => { const r = Math.floor(i / cols), c = i % cols, x = px + 10 + c * (bw + gap), y = py + 40 + r * (bw + gap); const isSel = f === this.sel, here = f === G.floor; UI.button(ctx, 'fl:' + f, x, y, bw, bw, this.label(f), true, isSel ? '#ffd36a' : here ? '#6a6a7a' : f === 83 ? '#ffe6c0' : '#ece4d0', '#1c1a24'); });
-      UI.button(ctx, 'esc', px + pw / 2 - 110, py + ph - 14, 100, 30, 'Step out', true); UI.button(ctx, 'fl:83', px + pw / 2 + 10, py + ph - 14, 100, 30, 'Home · 83', true, '#ffe6c0');
+      list.forEach((f, i) => { const y = py + 40 + i * (bh + gap), isSel = f === this.sel, here = f === G.floor; UI.button(ctx, 'fl:' + f, px + 14, y, pw - 28, bh, this.labelFor(f) + (here ? '  ·  you are here' : ''), false, isSel ? '#ffd36a' : here ? '#8a8a96' : '#ece4d0', '#1c1a24'); });
+      UI.button(ctx, 'esc', px + pw / 2 - 50, py + ph - 24, 100, 30, 'Step out', true);
     }
   },
 };
@@ -2452,7 +2450,6 @@ const Game = {
       else if (id === 'emotes') UI.panelOpen = !UI.panelOpen;
       else if (id === 'mute') { Music.on = !Music.on; UI.say(Music.on ? 'Music on' : 'Music off', 1.2); }
       else if (id === 'act' && this.action) this.action();
-      else if (id && id.startsWith('emote:')) p.setEmote(id.slice(6), 2.4);
       if (id && !(id.startsWith('fl:') || id === 'esc')) Input.tap = null;
     }
     if (this.cinema) { this.updateIntro(dt); Input.endFrame(); return; }
@@ -2473,6 +2470,7 @@ const Game = {
     const ctx = this.ctx, cam = Camera, pal = dayPalette();
     ctx.setTransform(cam.dpr, 0, 0, cam.dpr, 0, 0);
     if (typeof Lights !== 'undefined') Lights.clear();
+    UI.buttons = [];
     this.scene.draw(this, ctx, cam, pal);
     // night vignette
     const v = ctx.createRadialGradient(cam.w / 2, cam.h / 2, cam.h * .35, cam.w / 2, cam.h / 2, cam.h * .95); v.addColorStop(0, 'rgba(5,6,16,0)'); v.addColorStop(1, 'rgba(5,6,16,.55)'); ctx.fillStyle = v; ctx.fillRect(0, 0, cam.w, cam.h);
