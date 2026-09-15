@@ -371,7 +371,7 @@ const FONT = '"Comic Neue","Comic Sans MS","Chalkboard SE","Segoe Print",sans-se
 // Legs: hip angle from straight-down, +forward. knee = fold backward.
 // Arms: shoulder angle from straight-down, +forward (PI = straight up). elbow = fold forward.
 // spine: lean from vertical, +forward. head: nod, +forward (down). bob: pelvis vertical offset.
-const POSE0 = { hipF: 0, kneeF: .06, hipB: 0, kneeB: .06, shF: 0, elF: .12, shB: 0, elB: .12, spine: 0, head: 0, bob: 0, shrug: 0, footF: 0, footB: 0, sit: 0 };
+const POSE0 = { hipF: 0, kneeF: .06, hipB: 0, kneeB: .06, shF: 0, elF: .12, shB: 0, elB: .12, spine: 0, head: 0, bob: 0, shrug: 0, footF: 0, footB: 0, sit: 0, lie: 0 };
 const P = o => Object.assign({}, POSE0, o);
 const POSTURES = {
   idle: t => P({ bob: Math.sin(t * 2.2) * .6, shF: .04, shB: -.04, elF: .18 + Math.sin(t * 2.2) * .02 }),
@@ -391,6 +391,11 @@ const POSTURES = {
   wave: t => P({ shF: 2.8, elF: .6 + Math.sin(t * 10) * .5, shB: -.05, elB: .1, head: -.08 }),
   think: t => P({ shF: .55, elF: 2.55, shB: -.1, elB: .1, head: .18, spine: .06 }),
   point: t => P({ shF: 1.55, elF: 0, shB: -.15, elB: .1, head: -.05 }),
+  inBed: t => P({ hipF: .06, kneeF: .16, hipB: -.04, kneeB: .1, shF: .22, elF: .3, shB: -.18, elB: .22, spine: .03, head: -.12 + Math.sin(t * .8) * .02, lie: 1, bob: Math.sin(t * .8) * .6 }),
+  sitUp: t => P({ hipF: 1.5, kneeF: 1.2, hipB: 1.5, kneeB: 1.1, shF: .7, elF: 1.1, shB: .7, elB: 1.0, spine: .22, head: .18, sit: 1 }),
+  stretch: t => P({ shF: 2.75 + Math.sin(t * 2) * .08, elF: .18, shB: 2.7, elB: .22, head: -.42, spine: -.2, kneeF: .05, kneeB: .05, bob: -1.5 }),
+  yawn: t => P({ shF: 2.2, elF: 2.2, shB: .1, elB: .2, head: -.3, spine: -.08 }),
+  sleepSit: t => P({ hipF: 1.5, kneeF: 1.5, hipB: 1.5, kneeB: 1.5, shF: .5, elF: .6, shB: .5, elB: .6, spine: .3, head: .4, sit: 1 }),
   sit: t => P({ hipF: 1.5, kneeF: 1.5, hipB: 1.5, kneeB: 1.5, shF: .9, elF: 1.3, shB: .9, elB: 1.3, spine: .05, bob: 0, sit: 1 }),
   cheer: t => P({ shF: 2.9 + Math.sin(t * 9) * .2, elF: .2, shB: 2.9 - Math.sin(t * 9) * .2, elB: .2, head: -.35, bob: Math.abs(Math.sin(t * 9)) * -4, spine: -.1 }),
   facepalm: t => P({ shF: 1.3, elF: 2.6, shB: -.05, elB: .1, head: .35, spine: .08 }),
@@ -497,6 +502,8 @@ class Actor {
   }
   draw(ctx, zoom) {
     const s = this.spec;
+    const lie = this.pose.lie || 0;
+    if (lie > .02) { ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(lie * Math.PI / 2); ctx.scale(1, 1); this.drawBody(ctx); ctx.restore(); return; }
     const dep = this.depth || 0;
     if (dep > 0) { ctx.save(); ctx.translate(this.x, this.y - dep * 210); const k = 1 - dep * .72; ctx.scale(this.facing * k, k); ctx.globalAlpha = 1 - dep * .25; this.drawBody(ctx); ctx.restore(); if (this.speech) this.drawSpeech(ctx, zoom); return; }
     if (typeof Lights !== 'undefined') Lights.groundShadow(ctx, this.x, this.y, this.h, this.h * .38);
@@ -1366,6 +1373,7 @@ const cut = (ctx, col, x, y, w, h, r) => { ctx.fillStyle = col; ctx.beginPath();
 const shadowCut = (ctx, col, x, y, w, h, r) => { cut(ctx, 'rgba(0,0,0,.35)', x + 4, y + 5, w, h, r); cut(ctx, col, x, y, w, h, r); };
 const glow = (ctx, x, y, r, col, a) => { const g = ctx.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, col.replace('A', a || .35)); g.addColorStop(1, col.replace('A', 0)); ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2); };
 const WARM = 'rgba(255,225,160,A)';
+const WARM_L = '255,225,160';
 
 function roomBase(ctx, w, wall, floor, trim) {
   cut(ctx, wall, -200, -FLOOR_H * 2.4, w + 400, FLOOR_H * 2.4);
@@ -1422,11 +1430,12 @@ const StreetScene = {
 // ---------- LOBBY ----------
 const LobbyScene = {
   name: 'lobby', where: 'Lobby', w: 1200,
-  enter(G, from) { const p = G.player; p.y = 12; if (from === 'elevator') { p.x = 1010; p.facing = -1; } else { p.x = 90; p.facing = 1; } Camera.follow = p; Camera.locked = false; Camera.snapTo(p.x, -90, 1.6); Camera.tzoom = 1.6; },
+  enter(G, from) { const p = G.player; p.y = 12; p.depth = 0; if (from === 'elevator') { p.x = 1010; p.facing = -1; } else if (from === 'stairs') { p.x = 1150; p.facing = -1; } else { p.x = 90; p.facing = 1; } Camera.follow = p; Camera.locked = false; Camera.snapTo(p.x, -90, 1.6); Camera.tzoom = 1.6; },
   update(G, dt) {
     const p = G.player; G.movePlayer(dt, 30, this.w - 30, 4, ROOM_DEPTH);
     if (p.x < 110) G.setPrompt('Go outside', () => G.go('street', 'lobby'));
     else if (Math.abs(p.x - 1010) < 70) G.setPrompt('Call elevator', () => G.openElevator('lobby'));
+    else if (Math.abs(p.x - 1150) < 45) G.setPrompt('Stairwell', () => G.go('stairs', 'lobby'));
     else if (Math.abs(p.x - 560) < 60) G.setPrompt('Check mail', () => { if (!G.flags.mail) { G.flags.mail = true; G.give({ name: 'Letter', col: '#e8e0c8' }); UI.say('A letter. Rent is due.', 2.5); } else UI.say('Nothing else in the box.', 1.5); });
     else G.setPrompt(null);
     G.lobbyFolk.forEach(a => a.update(dt));
@@ -1451,6 +1460,7 @@ const LobbyScene = {
     cut(ctx, '#7a6a48', 940, -FLOOR_H * 1.05, 140, FLOOR_H * 1.05, 2);
     cut(ctx, '#2a2c3a', 950, -FLOOR_H, 58, FLOOR_H); cut(ctx, '#2a2c3a', 1012, -FLOOR_H, 58, FLOOR_H); cut(ctx, '#b8a068', 1006, -FLOOR_H, 8, FLOOR_H);
     ctx.fillStyle = '#ff9a3a'; ctx.font = `bold 12px ${FONT}`; ctx.fillText(G.elevatorFloorLabel(), 1010, -FLOOR_H - 10);
+    shadowCut(ctx, '#4a4038', 1120, -FLOOR_H * .92, 60, FLOOR_H * .92, 2); ctx.fillStyle = '#7fd48a'; ctx.font = `bold 10px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('STAIRS', 1150, -FLOOR_H * .98);
     cut(ctx, '#b8a068', 1086, -FLOOR_H * .55, 8, 14, 2); ctx.fillStyle = '#ffd36a'; ctx.beginPath(); ctx.arc(1090, -FLOOR_H * .5, 3, 0, TAU); ctx.fill();
     // ceiling lights
     for (let x = 120; x < this.w; x += 240) { cut(ctx, '#ffe6a8', x, -FLOOR_H * 1.75, 60, 6, 3); glow(ctx, x + 30, -FLOOR_H * 1.7, 160, WARM, .22); }
@@ -1522,10 +1532,11 @@ const ElevatorScene = {
 // ---------- HALLWAY ----------
 const HallScene = {
   name: 'hall', where: 'Hallway', w: 1500,
-  enter(G, from) { const p = G.player; p.y = 12; if (from === 'apartment') { p.x = 720; p.facing = -1; } else { p.x = 130; p.facing = 1; } this.where = 'Floor ' + G.floor; Camera.follow = p; Camera.locked = false; Camera.snapTo(p.x, -90, 1.6); Camera.tzoom = 1.6; },
+  enter(G, from) { const p = G.player; p.y = 12; p.depth = 0; if (from === 'apartment') { p.x = 720; p.facing = -1; } else if (from === 'stairs') { p.x = 1370; p.facing = -1; } else { p.x = 130; p.facing = 1; } this.where = 'Floor ' + G.floor; Camera.follow = p; Camera.locked = false; Camera.snapTo(p.x, -90, 1.6); Camera.tzoom = 1.6; },
   update(G, dt) {
     const p = G.player; G.movePlayer(dt, 30, this.w - 30, 4, ROOM_DEPTH);
     if (Math.abs(p.x - 100) < 60) G.setPrompt('Call elevator', () => G.openElevator('hall'));
+    else if (Math.abs(p.x - 1400) < 60) G.setPrompt('Stairwell', () => G.go('stairs', 'hall'));
     else {
       const d = this.doorAt(p.x);
       if (d !== null) { const mine = G.floor === PLAYER_FLOOR && d === 2; G.setPrompt(mine ? 'Go home' : 'Try door ' + this.num(G, d), () => { if (mine) G.go('apartment', 'hall'); else { UI.say('Locked.', 1); Camera.shake = .4; } }); }
@@ -1542,8 +1553,10 @@ const HallScene = {
     cut(ctx, '#2a2c3a', 60, -FLOOR_H, 48, FLOOR_H); cut(ctx, '#2a2c3a', 112, -FLOOR_H, 48, FLOOR_H); cut(ctx, '#b8a068', 108, -FLOOR_H, 6, FLOOR_H);
     ctx.fillStyle = '#ff9a3a'; ctx.font = `bold 12px ${FONT}`; ctx.textAlign = 'center'; ctx.fillText(G.elevatorFloorLabel(), 110, -FLOOR_H - 10);
     for (let i = 0; i < 6; i++) { const x = 280 + i * 220, mine = G.floor === PLAYER_FLOOR && i === 2; shadowCut(ctx, mine ? '#7a4a2a' : '#4a3a3a', x - 30, -FLOOR_H * .92, 60, FLOOR_H * .92, 2); cut(ctx, '#d8c070', x + 18, -FLOOR_H * .45, 5, 5, 2); cut(ctx, '#e8e0c8', x - 14, -FLOOR_H * .8, 28, 12, 2); ctx.fillStyle = '#1c1a24'; ctx.font = `bold 9px ${FONT}`; ctx.fillText(this.num(G, i), x, -FLOOR_H * .8 + 6); if (i % 2 === 0) { cut(ctx, '#ffe6a8', x + 100, -FLOOR_H * 1.1, 14, 18, 3); glow(ctx, x + 107, -FLOOR_H * 1.05, 90, WARM, .18); } }
-    // window at the end
-    cut(ctx, '#0d1226', this.w - 120, -FLOOR_H * 1.2, 90, FLOOR_H * 1.0); ctx.fillStyle = '#ffe2a0'; ctx.globalAlpha = .5; for (let i = 0; i < 14; i++) ctx.fillRect(this.w - 115 + hash2(i, 4) * 80, -FLOOR_H * 1.15 + hash2(i, 5) * 80, 3, 4); ctx.globalAlpha = 1;
+    // stairwell door at the end
+    shadowCut(ctx, '#4a4038', this.w - 130, -FLOOR_H * .92, 64, FLOOR_H * .92, 2); cut(ctx, '#d8c070', this.w - 76, -FLOOR_H * .45, 5, 5, 2); cut(ctx, '#20232a', this.w - 140, -FLOOR_H * 1.05, 84, 20, 2); ctx.fillStyle = '#7fd48a'; ctx.font = `bold 11px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('STAIRS', this.w - 98, -FLOOR_H * 1.05 + 10);
+    // window
+    cut(ctx, '#0d1226', this.w - 300, -FLOOR_H * 1.2, 90, FLOOR_H * 1.0); ctx.fillStyle = '#ffe2a0'; ctx.globalAlpha = .5; for (let i = 0; i < 14; i++) ctx.fillRect(this.w - 295 + hash2(i, 4) * 80, -FLOOR_H * 1.15 + hash2(i, 5) * 80, 3, 4); ctx.globalAlpha = 1;
     G.player.draw(ctx, cam.zoom);
     cam.end(ctx);
   },
@@ -1551,42 +1564,123 @@ const HallScene = {
 
 // ---------- APARTMENT ----------
 const ApartmentScene = {
-  name: 'apartment', where: 'Home · 8304', w: 1000,
-  enter(G, from) { const p = G.player; p.y = 12; if (from === 'balcony') { p.x = 920; p.facing = -1; } else { p.x = 70; p.facing = 1; } Camera.follow = p; Camera.locked = false; Camera.snapTo(p.x, -90, 1.6); Camera.tzoom = 1.6; },
+  name: 'apartment', where: 'Home · 8304', w: 1500, bed: 210,
+  enter(G, from) {
+    const p = G.player; p.y = 12; p.depth = 0;
+    if (from === 'balcony') { p.x = 1420; p.facing = -1; }
+    else if (from === 'wake') { p.x = this.bed; p.facing = 1; }
+    else { p.x = 90; p.facing = 1; }
+    Camera.follow = p; Camera.locked = false; Camera.snapTo(p.x, -90, 1.6); Camera.tzoom = 1.6;
+  },
   update(G, dt) {
     const p = G.player; G.movePlayer(dt, 30, this.w - 30, 4, ROOM_DEPTH);
+    const near = (x, r) => Math.abs(p.x - x) < (r || 50);
     if (p.x < 100) G.setPrompt('Leave', () => G.go('hall', 'apartment'));
-    else if (p.x > 900) G.setPrompt('Step onto balcony', () => G.go('balcony', 'apartment'));
-    else if (Math.abs(p.x - 640) < 50 && !G.flags.wallet) G.setPrompt('Take wallet', () => { G.flags.wallet = true; G.cash += 40; G.give({ name: 'Keys', col: '#d8c070' }); UI.say('$40 and your keys.', 2.5); });
-    else if (Math.abs(p.x - 300) < 50) G.setPrompt(G.flags.tv ? 'Turn off TV' : 'Turn on TV', () => { G.flags.tv = !G.flags.tv; });
-    else if (Math.abs(p.x - 180) < 40 && !G.flags.phone) G.setPrompt('Take phone', () => { G.flags.phone = true; G.give({ name: 'Phone', col: '#1c1a24' }); });
-    else if (Math.abs(p.x - 790) < 40) G.setPrompt('Open fridge', () => { if (!G.flags.fridge) { G.flags.fridge = true; G.give({ name: 'Pizza', col: '#d9a23a' }); UI.say('Cold pizza. Still good.', 2); } else UI.say('Empty now.', 1); });
+    else if (p.x > 1400) G.setPrompt('Step onto balcony', () => G.go('balcony', 'apartment'));
+    else if (near(this.bed, 70)) G.setPrompt(G.flags.madeBed ? 'Lie down' : 'Make the bed', () => { if (!G.flags.madeBed) { G.flags.madeBed = true; UI.say('Bed made. Small win.', 2); } else { p.setEmote('inBed', 3); UI.say('Five more minutes.', 2); } });
+    else if (near(330, 40) && !G.flags.clock) G.setPrompt('Silence the alarm', () => { G.flags.clock = true; UI.say('7:12pm. You slept through the day again.', 3); });
+    else if (near(470, 45) && !G.flags.phone) G.setPrompt('Take phone', () => { G.flags.phone = true; G.give({ name: 'Phone', col: '#1c1a24' }); });
+    else if (near(620, 60)) G.setPrompt(G.flags.tv ? 'Turn off TV' : 'Turn on TV', () => { G.flags.tv = !G.flags.tv; });
+    else if (near(880, 50)) G.setPrompt(G.flags.music ? 'Stop the record' : 'Put a record on', () => { G.flags.music = !G.flags.music; UI.say(G.flags.music ? 'Something slow.' : 'Quiet again.', 1.6); });
+    else if (near(1090, 50) && !G.flags.wallet) G.setPrompt('Take wallet', () => { G.flags.wallet = true; G.cash += 40; G.give({ name: 'Keys', col: '#d8c070' }); UI.say('$40 and your keys.', 2.5); });
+    else if (near(1230, 45)) G.setPrompt('Open fridge', () => { if (!G.flags.fridge) { G.flags.fridge = true; G.give({ name: 'Pizza', col: '#d9a23a' }); UI.say('Cold pizza. Still good.', 2); } else UI.say('Empty now.', 1.2); });
     else G.setPrompt(null);
   },
   draw(G, ctx, cam, pal) {
     ctx.fillStyle = '#0a0c18'; ctx.fillRect(0, 0, cam.w, cam.h);
     cam.begin(ctx); inkW(cam.zoom);
-    roomBase(ctx, this.w, '#4a4258', '#6a4a36', '#2f2a3a');
-    // big window with the city below
-    cut(ctx, '#0d1226', 380, -FLOOR_H * 1.35, 220, FLOOR_H * .95, 3); ctx.fillStyle = '#ffe2a0'; for (let i = 0; i < 60; i++) { ctx.globalAlpha = .3 + hash2(i, 9) * .6; ctx.fillRect(385 + hash2(i, 4) * 210, -FLOOR_H * 1.3 + hash2(i, 5) * 80 + hash2(i, 6) * 6, 2, 3); } ctx.globalAlpha = 1; cut(ctx, '#3a3448', 488, -FLOOR_H * 1.35, 4, FLOOR_H * .95);
-    // door
+    roomBase(ctx, this.w, '#453d55', '#6a4a36', '#2f2a3a');
+    // floorboards + rug
+    ctx.fillStyle = 'rgba(0,0,0,.12)'; for (let x = 0; x < this.w; x += 46) ctx.fillRect(x, 0, 2, ROOM_DEPTH + 8);
+    cut(ctx, '#6a3a4a', 560, 2, 300, ROOM_DEPTH + 4); cut(ctx, '#7a4a5a', 580, 5, 260, ROOM_DEPTH - 2);
+    // front door
     cut(ctx, '#5a3a2a', 40, -FLOOR_H * .92, 56, FLOOR_H * .92, 2); cut(ctx, '#d8c070', 84, -FLOOR_H * .45, 5, 5, 2);
-    // side table + phone
-    shadowCut(ctx, '#5a3f2a', 150, -34, 60, 34, 2); if (!G.flags.phone) cut(ctx, '#1c1a24', 172, -40, 12, 7, 2); cut(ctx, '#ffe6a8', 190, -70, 16, 12, 3); cut(ctx, '#6a5a3a', 197, -58, 3, 24); glow(ctx, 198, -64, 70, WARM, .25);
-    // couch
-    shadowCut(ctx, '#6a3a4a', 220, -40, 150, 40, 8); cut(ctx, '#7a4a5a', 220, -62, 150, 26, 8); cut(ctx, '#7a4a5a', 212, -50, 16, 50, 6); cut(ctx, '#7a4a5a', 362, -50, 16, 50, 6);
-    // TV on stand
-    shadowCut(ctx, '#3a3040', 240, -36 + 0, 0, 0); shadowCut(ctx, '#2a2436', 250, -FLOOR_H * .55, 110, 62, 3); cut(ctx, G.flags.tv ? '#6ab8ff' : '#0a0c14', 256, -FLOOR_H * .55 + 6, 98, 50); if (G.flags.tv) { glow(ctx, 305, -FLOOR_H * .55 + 30, 120, 'rgba(120,190,255,A)', .25); ctx.fillStyle = 'rgba(255,255,255,.25)'; ctx.fillRect(262 + (G.clock * 800) % 80, -FLOOR_H * .55 + 14, 30, 34); }
-    // shelf
-    cut(ctx, '#5a3f2a', 620, -FLOOR_H * 1.1, 8, FLOOR_H * .5); cut(ctx, '#5a3f2a', 628, -FLOOR_H * 1.1, 90, 6); cut(ctx, '#5a3f2a', 628, -FLOOR_H * .85, 90, 6); const bc = ['#b0413e', '#3e8a5b', '#2f6f9f', '#d9b23a', '#5a4a9f']; for (let i = 0; i < 8; i++) cut(ctx, bc[i % 5], 634 + i * 10, -FLOOR_H * 1.1 - 22 + hash2(i, 2) * 6, 8, 22 - hash2(i, 2) * 6);
-    // kitchen counter + wallet + fridge
-    shadowCut(ctx, '#8a8a90', 600, -44, 160, 44, 2); cut(ctx, '#3a3a44', 600, -40, 160, 6); if (!G.flags.wallet) cut(ctx, '#5a3a2a', 636, -50, 16, 8, 2); cut(ctx, '#2a2c3a', 700, -46, 30, 20, 2);
-    shadowCut(ctx, '#c8c8cc', 770, -FLOOR_H * .95, 52, FLOOR_H * .95, 3); cut(ctx, '#6a6a70', 776, -FLOOR_H * .6, 40, 3); cut(ctx, '#6a6a70', 812, -FLOOR_H * .8, 3, 14); cut(ctx, '#6a6a70', 812, -FLOOR_H * .5, 3, 14);
-    // balcony door (sliding glass)
-    cut(ctx, '#0d1226', 900, -FLOOR_H * 1.2, 80, FLOOR_H * 1.2); ctx.fillStyle = '#ffe2a0'; ctx.globalAlpha = .45; for (let i = 0; i < 20; i++) ctx.fillRect(905 + hash2(i, 7) * 70, -FLOOR_H * 1.15 + hash2(i, 8) * 100, 2, 3); ctx.globalAlpha = 1; cut(ctx, '#3a3448', 938, -FLOOR_H * 1.2, 4, FLOOR_H * 1.2);
-    // ceiling lamp
-    cut(ctx, '#ffe6a8', 470, -FLOOR_H * 1.75, 60, 8, 4); cut(ctx, '#6a5a3a', 499, -FLOOR_H * 1.8, 2, 16); glow(ctx, 500, -FLOOR_H * 1.7, 200, WARM, .2);
+    cut(ctx, '#3a3448', 110, -FLOOR_H * .95, 5, 26); cut(ctx, '#d8c070', 108, -FLOOR_H * .9, 9, 5, 2);
+    // ---- bedroom end: bed, headboard, nightstand, alarm clock, poster
+    const B = this.bed;
+    cut(ctx, '#4a3040', B - 96, -FLOOR_H * 1.0, 190, FLOOR_H * .55, 5);      // headboard
+    shadowCut(ctx, '#3a3448', B - 100, -48, 210, 48, 4);                      // frame
+    cut(ctx, '#e8e2d2', B - 96, -62, 200, 18, 6);                             // mattress
+    cut(ctx, G.flags.madeBed ? '#4a6a8a' : '#4a6a8a', B - 46, -66, 150, 24, 8); // duvet
+    if (!G.flags.madeBed) { cut(ctx, '#5a7a9a', B - 30, -72, 120, 16, 8); cut(ctx, '#41607e', B + 40, -70, 70, 18, 8); }
+    cut(ctx, '#f2ece0', B - 90, -76, 58, 20, 8);                              // pillow
+    shadowCut(ctx, '#5a3f2a', B + 130, -40, 56, 40, 3);                       // nightstand
+    cut(ctx, G.flags.clock ? '#3a1a1a' : '#b0413e', B + 142, -52, 30, 13, 2);
+    if (!G.flags.clock && Math.floor(G.clock * 400) % 2 === 0) { ctx.fillStyle = '#ff5a4a'; ctx.font = `bold 9px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('7:12', B + 157, -45); glow(ctx, B + 157, -45, 70, 'rgba(255,90,74,A)', .3); }
+    cut(ctx, '#6a5a3a', B + 196, -96, 4, 96); cut(ctx, '#ffe6a8', B + 182, -116, 32, 22, 4); Lights.add(B + 198, -110, 220, WARM_L, .7); Lights.caster(B + 198, 14, 200, .6);
+    cut(ctx, '#2a3a5a', B - 80, -FLOOR_H * 1.55, 90, 70, 2); ctx.fillStyle = '#d9b23a'; ctx.beginPath(); ctx.arc(B - 35, -FLOOR_H * 1.55 + 34, 18, 0, TAU); ctx.fill();
+    // alarm clock + phone on a side table
+    shadowCut(ctx, '#5a3f2a', 440, -34, 64, 34, 2); if (!G.flags.phone) cut(ctx, '#1c1a24', 462, -41, 13, 8, 2);
+    // ---- living end: couch, TV, shelves, record player
+    shadowCut(ctx, '#6a3a4a', 560, -40, 160, 40, 8); cut(ctx, '#7a4a5a', 560, -64, 160, 28, 8); cut(ctx, '#7a4a5a', 552, -52, 16, 52, 6); cut(ctx, '#7a4a5a', 712, -52, 16, 52, 6);
+    cut(ctx, '#8a5a6a', 600, -70, 30, 12, 5); cut(ctx, '#5a6a8a', 660, -70, 30, 12, 5);
+    shadowCut(ctx, '#2a2436', 600, -FLOOR_H * .62, 120, 66, 3); cut(ctx, G.flags.tv ? '#6ab8ff' : '#0a0c14', 606, -FLOOR_H * .62 + 6, 108, 54);
+    if (G.flags.tv) { glow(ctx, 660, -FLOOR_H * .62 + 33, 200, 'rgba(120,190,255,A)', .3); ctx.fillStyle = 'rgba(255,255,255,.22)'; ctx.fillRect(612 + (G.clock * 800) % 90, -FLOOR_H * .62 + 14, 32, 38); }
+    shadowCut(ctx, '#4a3a2a', 840, -46, 100, 46, 2); cut(ctx, '#2a2436', 852, -54, 76, 10, 2);
+    if (G.flags.music) { ctx.fillStyle = '#e8e2d2'; ctx.font = `14px ${FONT}`; ctx.textAlign = 'center'; for (let i = 0; i < 3; i++) { const ph = (G.clock * 300 + i * .33) % 1; ctx.globalAlpha = 1 - ph; ctx.fillText('♪', 890 + Math.sin(ph * 7 + i) * 14, -60 - ph * 60); } ctx.globalAlpha = 1; }
+    cut(ctx, '#5a3f2a', 960, -FLOOR_H * 1.15, 8, FLOOR_H * .55); cut(ctx, '#5a3f2a', 968, -FLOOR_H * 1.15, 96, 6); cut(ctx, '#5a3f2a', 968, -FLOOR_H * .9, 96, 6);
+    const bc = ['#b0413e', '#3e8a5b', '#2f6f9f', '#d9b23a', '#5a4a9f']; for (let i = 0; i < 9; i++) cut(ctx, bc[i % 5], 974 + i * 10, -FLOOR_H * 1.15 - 22 + hash2(i, 2) * 6, 8, 22 - hash2(i, 2) * 6);
+    // big window between the two halves
+    cut(ctx, '#0d1226', 740, -FLOOR_H * 1.5, 190, FLOOR_H * .95, 3); ctx.fillStyle = '#ffe2a0'; for (let i = 0; i < 70; i++) { ctx.globalAlpha = .3 + hash2(i, 9) * .6; ctx.fillRect(745 + hash2(i, 4) * 180, -FLOOR_H * 1.45 + hash2(i, 5) * 80, 2, 3); } ctx.globalAlpha = 1; cut(ctx, '#3a3448', 833, -FLOOR_H * 1.5, 4, FLOOR_H * .95);
+    // kitchen: counter, wallet, fridge, kettle
+    shadowCut(ctx, '#8a8a90', 1040, -46, 180, 46, 2); cut(ctx, '#3a3a44', 1040, -42, 180, 6);
+    if (!G.flags.wallet) cut(ctx, '#5a3a2a', 1082, -54, 18, 9, 2);
+    cut(ctx, '#2a2c3a', 1150, -50, 34, 22, 2); cut(ctx, '#c0c4cc', 1196, -58, 16, 16, 3);
+    shadowCut(ctx, '#c8c8cc', 1210, -FLOOR_H * .95, 56, FLOOR_H * .95, 3); cut(ctx, '#6a6a70', 1216, -FLOOR_H * .6, 44, 3); cut(ctx, '#6a6a70', 1254, -FLOOR_H * .8, 3, 14); cut(ctx, '#6a6a70', 1254, -FLOOR_H * .5, 3, 14);
+    cut(ctx, '#d9b23a', 1222, -FLOOR_H * .95 - 14, 20, 14, 2);
+    // plant + balcony door
+    cut(ctx, '#5a3a2a', 1300, -30, 30, 30, 3); ctx.fillStyle = '#2a6a4a'; for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.ellipse(1315 + Math.cos(i * 1.3) * 18, -52 + Math.sin(i * 1.3) * 12, 20, 9, i * .7, 0, TAU); ctx.fill(); }
+    cut(ctx, '#0d1226', 1400, -FLOOR_H * 1.2, 90, FLOOR_H * 1.2); ctx.fillStyle = '#ffe2a0'; ctx.globalAlpha = .45; for (let i = 0; i < 22; i++) ctx.fillRect(1405 + hash2(i, 7) * 80, -FLOOR_H * 1.15 + hash2(i, 8) * 100, 2, 3); ctx.globalAlpha = 1; cut(ctx, '#3a3448', 1443, -FLOOR_H * 1.2, 4, FLOOR_H * 1.2);
+    // ceiling lamps
+    for (const lx of [300, 700, 1120]) { cut(ctx, '#6a5a3a', lx + 29, -FLOOR_H * 1.9, 2, 16); cut(ctx, '#ffe6a8', lx, -FLOOR_H * 1.78, 60, 8, 4); Lights.add(lx + 30, -FLOOR_H * 1.7, 320, WARM_L, .7); Lights.caster(lx + 30, 16, 300, .7); }
     G.player.draw(ctx, cam.zoom);
+    if ((G.player.pose.lie || 0) > .3) { cut(ctx, '#41607e', B - 16, -70, 170, 26, 9); cut(ctx, '#4a6a8a', B - 20, -74, 140, 24, 9); }
+    Lights.draw(ctx, cam);
+    cam.end(ctx);
+  },
+};
+
+// ---------- STAIRWELL: 83 floors of it ----------
+const StairScene = {
+  name: 'stairs', where: 'Stairwell', w: 620, climbing: null,
+  enter(G, from) { const p = G.player; p.x = 300; p.y = 12; p.facing = 1; p.depth = 0; this.climbing = null; this.where = 'Stairs · floor ' + G.floor; Camera.follow = p; Camera.locked = false; Camera.snapTo(p.x, -90, 1.5); Camera.tzoom = 1.5; },
+  update(G, dt) {
+    const p = G.player;
+    if (this.climbing) {
+      const c = this.climbing; c.t += dt;
+      const k = clamp(c.t / c.dur, 0, 1);
+      p.x = lerp(c.x0, c.x1, k); p.y = 12; p.vx = (c.x1 - c.x0) / c.dur * .5; p.facing = sgn(c.x1 - c.x0);
+      Camera.y = -90 - Math.sin(k * Math.PI) * 60;
+      if (k >= 1) { G.floor = clamp(G.floor + c.dir, 0, TOWER.floors); this.where = 'Stairs · floor ' + (G.floor === 0 ? 'L' : G.floor); p.x = c.dir > 0 ? 120 : 500; this.climbing = null; G.stairFloors = (G.stairFloors || 0) + 1; if (G.stairFloors === 12) UI.setHint('This is going to take a while.', 3); if (G.stairFloors === 40) UI.setHint('Your legs are on fire.', 3); }
+      p.update(dt); return;
+    }
+    G.movePlayer(dt, 60, this.w - 60, 4, ROOM_DEPTH);
+    if (Math.abs(p.x - 300) < 60) G.setPrompt('Leave stairwell', () => G.go(G.floor === 0 ? 'lobby' : 'hall', 'stairs'));
+    else if (p.x > this.w - 110 && G.floor < TOWER.floors) G.setPrompt('Up one floor', () => { this.climbing = { t: 0, dur: 2.6, x0: p.x, x1: this.w - 70, dir: 1 }; });
+    else if (p.x < 110 && G.floor > 0) G.setPrompt('Down one floor', () => { this.climbing = { t: 0, dur: 2.1, x0: p.x, x1: 70, dir: -1 }; });
+    else G.setPrompt(null);
+  },
+  draw(G, ctx, cam, pal) {
+    ctx.fillStyle = '#07090f'; ctx.fillRect(0, 0, cam.w, cam.h);
+    cam.begin(ctx); inkW(cam.zoom);
+    roomBase(ctx, this.w, '#2f3238', '#3a3d44', '#222429');
+    ctx.fillStyle = 'rgba(0,0,0,.2)'; for (let x = 0; x < this.w; x += 50) ctx.fillRect(x, 0, 25, ROOM_DEPTH + 8);
+    // flights going up on the right, down on the left
+    const flight = (x0, dir) => { for (let i = 0; i < 7; i++) { const x = x0 + dir * i * 22, y = -i * 18; cut(ctx, '#4a4d55', x, y - 18, 22, 18); cut(ctx, '#3a3d44', x, y - 20, 22, 3); }
+      ctx.fillStyle = '#6a6e78'; for (let i = 0; i < 7; i++) ctx.fillRect(x0 + dir * i * 22 + 8, -i * 18 - 56, 3, 36); ctx.save(); ctx.beginPath(); ctx.moveTo(x0, -54); ctx.lineTo(x0 + dir * 154, -54 - 126); ctx.lineTo(x0 + dir * 154, -46 - 126); ctx.lineTo(x0, -46); ctx.fill(); ctx.restore(); };
+    flight(this.w - 170, 1); flight(160, -1);
+    // landing door and floor number stencil
+    cut(ctx, '#4a4038', 268, -FLOOR_H * .92, 64, FLOOR_H * .92, 2); cut(ctx, '#d8c070', 322, -FLOOR_H * .45, 5, 5, 2);
+    cut(ctx, '#20232a', 250, -FLOOR_H * 1.25, 100, 34, 2);
+    ctx.fillStyle = '#c9cdd6'; ctx.font = `bold 24px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(G.floor === 0 ? 'L' : String(G.floor), 300, -FLOOR_H * 1.25 + 17);
+    ctx.fillStyle = '#8a8e98'; ctx.font = `10px ${FONT}`; ctx.fillText('EXIT', 300, -FLOOR_H * .98);
+    // a single caged bulb, pipes, a scrawl on the wall
+    cut(ctx, '#ffe9c0', 292, -FLOOR_H * 1.7, 18, 10, 4); glow(ctx, 300, -FLOOR_H * 1.66, 260, 'rgba(255,233,192,A)', .3);
+    Lights.add(300, -FLOOR_H * 1.66, 320, LC.lamp, .8); Lights.caster(300, 16, 280, .8);
+    ctx.fillStyle = '#5a5e66'; ctx.fillRect(40, -FLOOR_H * 1.55, this.w - 80, 5); ctx.fillRect(40, -FLOOR_H * 1.35, this.w - 80, 3);
+    ctx.fillStyle = 'rgba(200,190,170,.25)'; ctx.font = `12px ${FONT}`; ctx.fillText('83 FLOORS. GOOD LUCK.', 430, -70);
+    G.player.draw(ctx, cam.zoom);
+    Lights.draw(ctx, cam);
     cam.end(ctx);
   },
 };
@@ -1609,7 +1703,7 @@ const RoofScene = {
   update(G, dt) { const p = G.player; G.movePlayer(dt, this.x0 + 12, this.x0 + this.w - 12, this.y, this.y); const b = Camera.bounds(); G.city.crowd.update(dt, p, b); if (Math.abs(p.x - (TOWER.x + TOWER.w / 2 - 150)) < 50) G.setPrompt('Take elevator', () => G.openElevator('roof')); else G.setPrompt(null); },
   draw(G, ctx, cam, pal) { StreetScene.draw(G, ctx, cam, pal); },
 };
-const SCENES = { street: StreetScene, lobby: LobbyScene, elevator: ElevatorScene, hall: HallScene, apartment: ApartmentScene, balcony: BalconyScene, roof: RoofScene };
+const SCENES = { stairs: StairScene, street: StreetScene, lobby: LobbyScene, elevator: ElevatorScene, hall: HallScene, apartment: ApartmentScene, balcony: BalconyScene, roof: RoofScene };
 
 // ---- 09_travel.js
 // ===== travel: airport + landmarks =====
@@ -1846,7 +1940,7 @@ const LANDMARKS = {
 // ---- 10_main.js
 // ===== main =====
 const Game = {
-  turn: null, clock: 0, cash: 0, inv: [null, null, null, null, null, null], where: 'Street', state: 'intro', floor: 0, flags: {}, coins: [], stamps: [], fade: 0, fadeDir: 0, pending: null, flight: null,
+  cinema: null, clock: 0, cash: 0, inv: [null, null, null, null, null, null], where: 'Street', state: 'intro', floor: 0, flags: {}, coins: [], stamps: [], fade: 0, fadeDir: 0, pending: null, flight: null,
   init(canvas) {
     this.canvas = canvas; this.ctx = canvas.getContext('2d');
     this.setStreet(City.home());
@@ -1855,18 +1949,34 @@ const Game = {
     const r = RNG(31); this.lobbyFolk = [0, 1, 2].map(i => { const a = new Actor(genCharacter(600 + i, i === 0 ? 'business' : i === 1 ? 'fancy' : 'elder')); a.x = [330, 700, 860][i]; a.y = [6, 14, 10][i]; a.facing = i === 0 ? 1 : -1; a.posture = i === 0 ? 'idle' : i === 1 ? 'phone' : 'sit'; if (i === 2) a.y = 4; return a; });
     Object.assign(SCENES, { airport: AirportScene, flight: FlightScene, landmark: LandmarkScene });
     this.crowdAir = [0, 1, 2, 3, 4].map(i => { const a = new Actor(genCharacter(800 + i * 5, i < 2 ? 'business' : i === 2 ? 'tourist' : undefined)); a.x = 300 + i * 220; a.y = 6 + (i % 3) * 8; a.facing = i % 2 ? -1 : 1; a.dir = a.facing; a.wander = i > 2; a.posture = i === 0 ? 'phone' : i === 1 ? 'crossArms' : 'idle'; return a; });
-    this.scene = StreetScene; this.resize(); Input.init(canvas); StreetScene.enter(this, null);
+    this.scene = ApartmentScene; this.floor = PLAYER_FLOOR; this.resize(); Input.init(canvas); ApartmentScene.enter(this, 'wake');
     if (typeof window !== 'undefined') { window.addEventListener('resize', () => this.resize()); this.last = performance.now(); requestAnimationFrame(t => this.frame(t)); }
     this.startIntro();
   },
   resize() { const dpr = Math.min(2, (typeof window !== 'undefined' && window.devicePixelRatio) || 1); const w = (typeof window !== 'undefined' ? window.innerWidth : this.canvas.width), h = (typeof window !== 'undefined' ? window.innerHeight : this.canvas.height); this.canvas.width = w * dpr; this.canvas.height = h * dpr; if (this.canvas.style) { this.canvas.style.width = w + 'px'; this.canvas.style.height = h + 'px'; } Camera.setSize(w, h, dpr); },
   startIntro() {
-    this.state = 'intro'; const p = this.player;
-    Camera.play([
-      { zoom: 2.4, dur: 1.2, hold: .5 },
-      { zoom: 0.06, x: TOWER.x + TOWER.w / 2, y: -TOWER.h / 2 + 900, dur: 3.2, hold: 1.4 },
-      { zoom: 1.0, x: p.x, dur: 1.1, ease: easeOut },
-    ], () => { this.state = 'play'; this.introDone = true; Camera.setStop(1); UI.setHint(Camera.w < 700 ? 'Drag left side to walk · pinch or +/– to zoom' : 'WASD to walk · E to interact or cross at a corner · scroll to zoom · 1–0 poses', 6); });
+    // he's asleep. alarm, sit up, stretch, stand, and then it's your night.
+    this.state = 'intro'; const p = this.player, B = ApartmentScene.bed;
+    p.x = B - 54; p.y = -64; p.facing = 1; p.posture = 'inBed'; p.setEmote('inBed', 99); this.where = 'Home · 8304';
+    Camera.follow = null; Camera.locked = true; Camera.snapTo(B + 20, -96, 2.4); Camera.tzoom = 2.4; Camera.tx = B + 20; Camera.ty = -96;
+    this.cinema = { t: 0, step: 0 };
+  },
+  updateIntro(dt) {
+    const C = this.cinema, p = this.player, B = ApartmentScene.bed;
+    C.t += dt;
+    const go = (step, at, fn) => { if (C.step === step && C.t >= at) { C.step++; fn(); } };
+    go(0, 1.4, () => { UI.say('7:12pm.', 2); });
+    go(1, 2.6, () => { p.setEmote('sitUp', 2.4); p.x = B + 10; p.y = -44; UI.setHint('Silence that alarm when you are up.', 3); });
+    go(2, 4.6, () => { p.setEmote('stretch', 2.2); p.x = B + 120; p.y = 12; Camera.tzoom = 1.8; Camera.ty = -120; Camera.tx = B + 140; });
+    go(3, 6.6, () => { p.setEmote('yawn', 1.4); });
+    go(4, 7.9, () => {
+      p.emote = null; p.posture = 'idle'; p.x = B + 140; p.y = 12; p.facing = 1;
+      Camera.follow = p; Camera.locked = false; Camera.tzoom = 1.6; Camera.setStop(Camera.nearestStop());
+      this.state = 'play'; this.introDone = true; this.cinema = null;
+      UI.setHint(Camera.w < 700 ? 'Drag the left side to walk · E to interact' : 'WASD to walk · E to interact · 1–0 poses', 5);
+    });
+    p.update(dt);
+    if (Camera.locked) { Camera.x = lerp(Camera.x, Camera.tx || B + 10, 1 - Math.pow(.02, dt)); Camera.y = lerp(Camera.y, Camera.ty || -70, 1 - Math.pow(.02, dt)); Camera.zoom = Math.exp(lerp(Math.log(Camera.zoom), Math.log(Camera.tzoom), 1 - Math.pow(.05, dt))); }
   },
   frame(t) { const dt = Math.min(.05, (t - this.last) / 1000); this.last = t; this.update(dt); this.draw(); requestAnimationFrame(t => this.frame(t)); },
   // ---- streets
@@ -1876,71 +1986,12 @@ const Game = {
   density() { const h = this.hour(); const late = smoothstep(23.5, 25.5, h) * (1 - smoothstep(27.5, 29, h)); const wave = .85 + .15 * Math.sin(this.clock * 50 * .05); return clamp(wave * (1 - late * .82), .12, 1); },
   homeHint() { const c = this.city; if (!c) return null; if (c.isHome) { const d = TOWER.x + TOWER.w / 2 - this.player.x; return Math.abs(d) < 80 ? 'Home' : (d > 0 ? '→ ' : '← ') + Math.max(1, Math.round(Math.abs(d) / BLOCK * 10) / 10) + ' blocks'; } if (c.dir === 'ns') { const k = c.inters.find(i => i.cross.i === HOME.i); const d = k.x - this.player.x; return Math.abs(d) < 60 ? 'Cross here' : (d > 0 ? '→ ' : '← ') + 'Main St'; } return 'Cross to an avenue'; },
   cross(it) {
-    if (this.turn) return;
-    const to = City.get(it.cross.dir, it.cross.i);
-    this.turn = { t: 0, phase: 'up', from: this.city, to, it, k: it.k };
-    Camera.locked = true; UI.prompt = null; this.action = null; UI.panelOpen = false;
-    this.player.vx = this.player.vy = 0;
-  },
-  updateTurn(dt) {
-    const T = this.turn; T.t += dt;
-    const D = { up: .45, hold: .75, down: .45 }[T.phase];
-    if (T.t >= D) {
-      T.t = 0;
-      if (T.phase === 'up') T.phase = 'hold';
-      else if (T.phase === 'hold') {
-        const to = T.to, p = this.player;
-        this.setStreet(to);
-        const back = to.inters.find(q => q.cross.dir === T.from.dir && q.cross.i === T.from.i) || to.inters[0];
-        p.x = back.x; p.y = GROUND + 20; p.facing = 1; p.depth = 0;
-        this.where = to.name; Camera.snapTo(p.x, p.y - 100, Camera.zoom);
-        T.phase = 'down';
-      } else { const p = this.player; Camera.follow = p; Camera.locked = false; Camera.snapTo(p.x, p.y - 100, 1); Camera.setStop(1); this.turn = null; UI.setHint(this.city.name, 2.5); return; }
-    }
-    this.player.update(dt);
-  },
-  // overhead schematic of the grid — also the transition between streets
-  drawMap(ctx, cam) {
-    const T = this.turn, W = cam.w, H = cam.h;
-    let k = clamp(T.t / ({ up: .45, hold: .75, down: .45 })[T.phase], 0, 1);
-    const open = T.phase === 'up' ? easeInOut(k) : T.phase === 'down' ? 1 - easeInOut(k) : 1;
-    if (open <= 0) return;
-    ctx.save(); ctx.globalAlpha = open;
-    ctx.fillStyle = `rgba(7,10,22,${.86 + .14 * open})`; ctx.fillRect(0, 0, W, H);
-    const pad = Math.min(W, H) * .14, size = Math.min(W - pad * 2, H - pad * 2 - 40), ox = W / 2 - size / 2, oy = H / 2 - size / 2 + 10;
-    const sc = 1 - (1 - open) * .12; ctx.translate(W / 2, H / 2 + 10); ctx.scale(sc, sc); ctx.translate(-W / 2, -(H / 2 + 10));
-    const px = i => ox + size * (i + .5) / 4, roadW = Math.max(12, size * .045);
-    // blocks
-    ctx.fillStyle = '#131a2e';
-    for (let a = 0; a <= 4; a++) for (let b = 0; b <= 4; b++) { const x = ox + size * a / 4 + roadW / 2, y = oy + size * b / 4 + roadW / 2, w = size / 4 - roadW, h = size / 4 - roadW; if (a < 4 && b < 4) { ctx.fillStyle = '#141c30'; ctx.fillRect(x, y, w, h); ctx.fillStyle = 'rgba(255,255,255,.03)'; ctx.fillRect(x, y, w, 3); } }
-    // streets
-    const cur = this.city, dest = T.to;
-    const line = (dir, i, col, wid) => { ctx.fillStyle = col; if (dir === 'ew') ctx.fillRect(ox - 20, px(i) - wid / 2, size + 40, wid); else ctx.fillRect(px(i) - wid / 2, oy - 20, wid, size + 40); };
-    for (let i = 0; i < 4; i++) { line('ew', i, '#20283f', roadW); line('ns', i, '#20283f', roadW); }
-    // highlight: from-street stays warm, to-street lights up during the hold
-    const travel = T.phase === 'hold' ? easeInOut(k) : T.phase === 'up' ? 0 : 1;
-    line(T.from.dir, T.from.i, mix('#ffd36a', '#20283f', travel), roadW);
-    line(T.to.dir, T.to.i, mix('#20283f', '#ffd36a', travel), roadW);
-    // the tower
-    const tx = T.from.dir === 'ew' ? px(HOME.i) : px(HOME.i), ty = px(HOME.i);
-    ctx.fillStyle = '#7fd4ff'; ctx.beginPath(); ctx.arc(px(2), px(HOME.i), roadW * .38, 0, TAU); ctx.fill();
-    ctx.fillStyle = '#9ad8ff'; ctx.font = `bold ${Math.max(9, size * .026)}px ${FONT}`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText('HOME', px(2) + roadW * .8, px(HOME.i) - roadW * .9);
-    // you: slide from the old street to the new one through the corner
-    const corner = { x: T.from.dir === 'ew' ? px(T.it.cross.i) : px(T.from.i), y: T.from.dir === 'ew' ? px(T.from.i) : px(T.it.cross.i) };
-    const e = T.phase === 'hold' ? easeInOut(k) : T.phase === 'down' ? 1 : 0;
-    const you = { x: corner.x, y: corner.y };
-    // step out along the street you're turning onto
-    if (T.to.dir === 'ew') you.x = corner.x + size * .09 * e; else you.y = corner.y + size * .09 * e;
-    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(you.x, you.y, roadW * .42, 0, TAU); ctx.fill();
-    ctx.strokeStyle = `rgba(255,255,255,${.5 - .4 * travel})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(you.x, you.y, roadW * (.7 + travel * .9), 0, TAU); ctx.stroke();
-    // labels
-    ctx.font = `${Math.max(9, size * .028)}px ${FONT}`; ctx.textBaseline = 'middle';
-    for (let i = 0; i < 4; i++) { const hot = (T.to.dir === 'ew' && T.to.i === i); ctx.fillStyle = hot ? '#ffd36a' : 'rgba(210,220,240,.55)'; ctx.textAlign = 'right'; ctx.fillText(EW_NAMES[i], ox - 14, px(i)); }
-    ctx.textAlign = 'center';
-    for (let i = 0; i < 4; i++) { const hot = (T.to.dir === 'ns' && T.to.i === i); ctx.fillStyle = hot ? '#ffd36a' : 'rgba(210,220,240,.55)'; ctx.save(); ctx.translate(px(i), oy - 16); ctx.fillText(NS_NAMES[i], 0, 0); ctx.restore(); }
-    ctx.fillStyle = '#e8eef8'; ctx.font = `bold ${Math.max(13, size * .045)}px ${FONT}`; ctx.textAlign = 'center';
-    ctx.fillText(travel > .5 ? T.to.name : T.from.name, W / 2, oy + size + 34);
-    ctx.restore();
+    const to = City.get(it.cross.dir, it.cross.i), from = this.city, p = this.player;
+    this.setStreet(to);
+    const back = to.inters.find(q => q.cross.dir === from.dir && q.cross.i === from.i) || to.inters[0];
+    p.x = back.x; p.y = GROUND + 20; p.vx = p.vy = 0; p.depth = 0;
+    Camera.follow = p; Camera.locked = false; Camera.snapTo(p.x, p.y - 100, Camera.zoom);
+    this.where = to.name; UI.prompt = null; this.action = null; UI.setHint(to.name, 2.2);
   },
   // ---- helpers scenes use
   movePlayer(dt, x0, x1, y0, y1) {
@@ -1971,8 +2022,8 @@ const Game = {
       else if (id && id.startsWith('emote:')) p.setEmote(id.slice(6), 2.4);
       if (id && !(id.startsWith('fl:') || id === 'esc')) Input.tap = null;
     }
-    if (this.turn) { this.updateTurn(dt); if (this.city && this.city.crowd) this.city.crowd.update(dt, this.player, Camera.bounds()); Camera.update(dt); Input.endFrame(); return; }
-    if (this.state === 'play' && !this.fadeDir && !this.turn) {
+    if (this.cinema) { this.updateIntro(dt); Input.endFrame(); return; }
+    if (this.state === 'play' && !this.fadeDir) {
       for (const e of EMOTES) if (Input.consume('Digit' + e.key)) p.setEmote(e.name, 2.4);
       if (this.scene !== ElevatorScene && (Input.consume('KeyE') || Input.consume('Space') || Input.consume('Enter')) && this.action) this.action();
       this.scene.update(this, dt);
@@ -1991,9 +2042,8 @@ const Game = {
     this.scene.draw(this, ctx, cam, pal);
     // night vignette
     const v = ctx.createRadialGradient(cam.w / 2, cam.h / 2, cam.h * .35, cam.w / 2, cam.h / 2, cam.h * .95); v.addColorStop(0, 'rgba(5,6,16,0)'); v.addColorStop(1, 'rgba(5,6,16,.55)'); ctx.fillStyle = v; ctx.fillRect(0, 0, cam.w, cam.h);
-    if (this.turn && !this.noUI) this.drawMap(ctx, cam);
     if (!this.noUI) UI.draw(ctx, this);
-    if (this.state === 'intro') { const s = Camera.seq; if (s && s.i === 1) UI.title(ctx, 'NIGHTRISE', 'a regular guy · floor 83', Math.min(1, s.t)); }
+    if (this.cinema && this.cinema.t < 2.2) UI.title(ctx, 'NIGHTRISE', 'a regular guy · floor 83', clamp(Math.min(this.cinema.t, 2.2 - this.cinema.t) * 2, 0, 1));
     if (this.fade > 0) { ctx.fillStyle = `rgba(3,4,10,${this.fade})`; ctx.fillRect(0, 0, cam.w, cam.h); }
     Input.drawStick(ctx);
   },
