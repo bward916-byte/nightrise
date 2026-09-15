@@ -26,7 +26,8 @@ const StreetScene = {
   enter(G, from) {
     const p = G.player; p.y = GROUND + 20;
     if (from === 'lobby') { G.setStreet(City.home()); p.x = TOWER.x + TOWER.w / 2; p.facing = 1; }
-    if (from === 'airport') { G.setStreet(City.home()); p.x = G.city.taxiX; p.facing = -1; }
+    if (from === 'airport') { G.setStreet(City.home()); p.x = G.car ? TOWER.x - 150 : G.city.taxiX; p.facing = -1; }
+    if (from === 'factory') { G.setStreet(City.get('ew', 3)); p.x = 3050 + 85; p.facing = -1; }
     if (!G.city) G.setStreet(City.home());
     Camera.follow = p; Camera.locked = false; if (!G.introDone) Camera.snapTo(p.x, p.y - 60, 2.4); else { Camera.snapTo(p.x, p.y - 100, 1); Camera.setStop(1); }
   },
@@ -37,9 +38,20 @@ const StreetScene = {
     for (const cn of c.coins) if (!cn.got && Math.abs(cn.x - p.x) < 18 && Math.abs(cn.y - p.y) < 20) { cn.got = true; G.cash += cn.v; UI.say('+$' + cn.v, 1.2); }
     const door = TOWER.x + TOWER.w / 2, it = c.inters.find(k => Math.abs(k.x - p.x) < 44);
     if (c.isHome && Math.abs(p.x - door) < 60) G.setPrompt('Enter lobby', () => G.go('lobby', 'street'));
-    else if (c.taxiX !== null && Math.abs(p.x - c.taxiX) < 70) G.setPrompt(`Taxi to airport ($${TAXI_FARE})`, () => { if (G.cash >= TAXI_FARE) { G.cash -= TAXI_FARE; G.go('airport', 'street'); } else UI.say('Need $' + TAXI_FARE + ' for the cab.', 1.5); });
+    else if (c.taxiX !== null && Math.abs(p.x - c.taxiX) < 70) G.setPrompt(G.car ? 'Drive to airport' : `Taxi to airport ($${TAXI_FARE})`, () => { if (G.car) G.go('airport', 'street'); else if (G.cash >= TAXI_FARE) { G.cash -= TAXI_FARE; G.go('airport', 'street'); } else UI.say('Need $' + TAXI_FARE + ' for the cab.', 1.5); });
     else if (it) G.setPrompt('Cross to ' + City.name(it.cross.dir, it.cross.i), () => G.cross(it));
-    else G.setPrompt(null);
+    else {
+      const v = venuesFor(c).find(q => p.x > q.x - 10 && p.x < q.x + q.w + 10), pr = v ? venuePrompt(G, v) : null;
+      if (pr) G.setPrompt(pr[0], pr[1]);
+      else {
+        // hustle: bottles to collect on the industrial street, wallets to lift in a crowd
+        const bt = c.bottleSpots && c.bottleSpots.find(b => !b.got && Math.abs(b.x - p.x) < 20);
+        const mark = !bt && G.look < 70 && c.crowd.npcs.find(a => !a.hidden && a.spec.arch === 'business' && Math.abs(a.x - p.x) < 22 && Math.abs(a.y - p.y) < 14 && a.facing === p.facing);
+        if (bt) G.setPrompt('Pick up bottles', () => { bt.got = true; G.bottles += 3; UI.say('+3 bottles', 1.2); });
+        else if (mark) G.setPrompt('Lift his wallet', () => { const risk = .3 + G.heat * .3; if (Math.random() < risk) { const fine = Math.min(G.cash, 60 + Math.floor(G.cash * .25)); G.cash -= fine; G.heat = 1; p.setEmote('armsUp', 2.2); UI.say(`Caught. A cop took $${fine} and your name.`, 3.5); } else { const take = 20 + Math.floor(Math.random() * 70); G.cash += take; G.heat = Math.min(1, G.heat + .35); mark.setEmote('think', 2); p.setEmote('pockets', 1.5); UI.say(`+$${take}. Walk away normally.`, 2.5); } });
+        else G.setPrompt(null);
+      }
+    }
   },
   draw(G, ctx, cam, pal) {
     const c = G.city;
@@ -49,6 +61,9 @@ const StreetScene = {
     if (c.alley && c.alley.x + c.alley.w > b.x0 && c.alley.x < b.x1 && cam.zoom > .12) drawAlley(ctx, c, pal, cam.zoom);
     drawStreet(ctx, c, pal, cam.zoom, cam);
     if (c.isHome) { G.drawBalconyLedge(ctx, cam.zoom); G.drawRoofEdge(ctx, cam.zoom); }
+    if (cam.zoom > .12) for (const v of venuesFor(c)) if (v.x + v.w > b.x0 && v.x < b.x1) drawVenue(ctx, v, cam.zoom, G);
+    if (c.bottleSpots && cam.zoom > .3) for (const bt of c.bottleSpots) if (!bt.got && bt.x > b.x0 && bt.x < b.x1) { ctx.fillStyle = '#5a8a6a'; ctx.fillRect(bt.x - 3, bt.y - 12, 5, 12); ctx.fillRect(bt.x + 5, bt.y - 10, 5, 10); ctx.fillStyle = '#8a6a44'; ctx.fillRect(bt.x - 6, bt.y - 2, 18, 3); }
+    if (c.isHome && G.car && cam.zoom > .12) { const cr = CARS.find(k => k.id === G.car), pc = { x: TOWER.x - 150, col: cr.col, kind: 'sedan' }; drawParkedCar(ctx, pc); ctx.fillStyle = '#ffe6a8'; ctx.font = `bold 9px ${FONT}`; ctx.textAlign = 'center'; ctx.fillText('YOURS', pc.x, ROAD_Y + ROAD_H * .3 - 44); }
     if (c.taxiX !== null && cam.zoom > .12) {
       const tx = c.taxiX; cut(ctx, '#12141f', tx - 2, -120, 4, ROAD_Y + 116); cut(ctx, '#ffe36a', tx - 26, -140, 52, 22, 3); ctx.fillStyle = '#1a1a1a'; ctx.font = `bold 11px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('TAXI', tx, -129); ctx.fillStyle = '#ffd36a'; ctx.font = `9px ${FONT}`; ctx.fillText('AIRPORT', tx, -112); glow(ctx, tx, -130, 60, 'rgba(255,227,106,A)', .25);
       cut(ctx, '#e8c22a', tx + 40, ROAD_Y + 6, 100, 30, 6); cut(ctx, '#1e2a48', tx + 62, ROAD_Y - 6, 50, 14, 4); ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(tx + 62, ROAD_Y + 36, 8, 0, TAU); ctx.arc(tx + 120, ROAD_Y + 36, 8, 0, TAU); ctx.fill(); cut(ctx, '#ffe36a', tx + 78, ROAD_Y - 14, 24, 8, 2);
@@ -200,78 +215,105 @@ const HallScene = {
 };
 
 // ---------- APARTMENT ----------
+// furniture helpers: two-tone shapes with a lit top edge and a shadow foot, at human scale (player ≈ 57px)
+const box = (ctx, col, x, y, w, h, r, lit) => { cut(ctx, 'rgba(0,0,0,.35)', x + 3, y + 4, w, h, r); cut(ctx, col, x, y, w, h, r); cut(ctx, shade(col, lit || 1.18), x, y, w, Math.max(2, h * .12), r); cut(ctx, shade(col, .78), x, y + h - Math.max(2, h * .1), w, Math.max(2, h * .1), r); };
 const ApartmentScene = {
-  name: 'apartment', where: 'Home · 8304', w: 1500, bed: 210,
+  name: 'apartment', where: 'Home · 8304', w: 1180, bed: 150,
   enter(G, from) {
     const p = G.player; p.y = 12; p.depth = 0;
-    if (from === 'balcony') { p.x = 1420; p.facing = -1; }
+    if (from === 'balcony') { p.x = 1100; p.facing = -1; }
     else if (from === 'wake') { p.x = this.bed; p.facing = 1; }
     else { p.x = 90; p.facing = 1; }
-    Camera.follow = p; Camera.locked = false; Camera.snapTo(p.x, -90, 1.6); Camera.tzoom = 1.6;
+    Camera.follow = p; Camera.locked = false; Camera.snapTo(p.x, -80, 1.7); Camera.tzoom = 1.7;
   },
   update(G, dt) {
     const p = G.player; G.movePlayer(dt, 30, this.w - 30, 4, ROOM_DEPTH);
-    const near = (x, r) => Math.abs(p.x - x) < (r || 50);
-    if (p.x < 100) G.setPrompt('Leave', () => G.go('hall', 'apartment'));
-    else if (p.x > 1400) G.setPrompt('Step onto balcony', () => G.go('balcony', 'apartment'));
-    else if (near(this.bed, 70)) G.setPrompt(G.flags.madeBed ? 'Lie down' : 'Make the bed', () => { if (!G.flags.madeBed) { G.flags.madeBed = true; UI.say('Bed made. Small win.', 2); } else { p.setEmote('inBed', 3); UI.say('Five more minutes.', 2); } });
-    else if (near(330, 40) && !G.flags.clock) G.setPrompt('Silence the alarm', () => { G.flags.clock = true; UI.say('7:12pm. You slept through the day again.', 3); });
-    else if (near(470, 45) && !G.flags.phone) G.setPrompt('Take phone', () => { G.flags.phone = true; G.give({ name: 'Phone', col: '#1c1a24' }); });
-    else if (near(620, 60)) G.setPrompt(G.flags.tv ? 'Turn off TV' : 'Turn on TV', () => { G.flags.tv = !G.flags.tv; });
-    else if (near(880, 50)) G.setPrompt(G.flags.music ? 'Stop the record' : 'Put a record on', () => { G.flags.music = !G.flags.music; UI.say(G.flags.music ? 'Something slow.' : 'Quiet again.', 1.6); });
-    else if (near(1090, 50) && !G.flags.wallet) G.setPrompt('Take wallet', () => { G.flags.wallet = true; G.cash += 40; G.give({ name: 'Keys', col: '#d8c070' }); UI.say('$40 and your keys.', 2.5); });
-    else if (near(1230, 45)) G.setPrompt('Open fridge', () => { if (!G.flags.fridge) { G.flags.fridge = true; G.give({ name: 'Pizza', col: '#d9a23a' }); UI.say('Cold pizza. Still good.', 2); } else UI.say('Empty now.', 1.2); });
+    const near = (x, r) => Math.abs(p.x - x) < (r || 40);
+    if (p.x < 95) G.setPrompt('Leave', () => G.go('hall', 'apartment'));
+    else if (p.x > 1090) G.setPrompt('Step onto balcony', () => G.go('balcony', 'apartment'));
+    else if (near(this.bed + 30, 46)) G.setPrompt(G.flags.madeBed ? (G.energy < 60 ? 'Sleep' : 'Lie down') : 'Make the bed', () => { if (!G.flags.madeBed) { G.flags.madeBed = true; G.look = Math.min(100, (G.look || 0) + 1); UI.say('Bed made. Small win.', 2); } else { p.setEmote('inBed', 3); if (G.energy < 60) { G.energy = 100; G.clock += 4; UI.say('Slept a few hours.', 2); } else UI.say('Five more minutes.', 2); } });
+    else if (near(232, 26) && !G.flags.clock) G.setPrompt('Silence the alarm', () => { G.flags.clock = true; UI.say('7:12pm. You slept through the day again.', 3); });
+    else if (near(300, 30)) G.setPrompt('Check the mirror', () => { UI.say(G.lookText(), 2.6); p.setEmote('think', 1.6); });
+    else if (near(370, 30) && !G.flags.phone) G.setPrompt('Take phone', () => { G.flags.phone = true; G.give({ name: 'Phone', col: '#1c1a24' }); });
+    else if (near(560, 40)) G.setPrompt(G.flags.tv ? 'Turn off TV' : 'Turn on TV', () => { G.flags.tv = !G.flags.tv; });
+    else if (near(700, 34)) G.setPrompt(G.flags.music ? 'Stop the record' : 'Put a record on', () => { G.flags.music = !G.flags.music; UI.say(G.flags.music ? 'Something slow.' : 'Quiet again.', 1.6); });
+    else if (near(850, 34) && !G.flags.wallet) G.setPrompt('Take wallet', () => { G.flags.wallet = true; G.cash += 40; G.give({ name: 'Keys', col: '#d8c070' }); UI.say('$40 and your keys.', 2.5); });
+    else if (near(960, 30)) G.setPrompt('Open fridge', () => { if (!G.flags.fridge) { G.flags.fridge = true; G.give({ name: 'Pizza', col: '#d9a23a' }); UI.say('Cold pizza. Still good.', 2); } else if (G.food > 0) { G.food--; G.energy = Math.min(100, G.energy + 30); UI.say('Ate something from the fridge.', 1.6); } else UI.say('Empty. Buy food.', 1.4); });
     else G.setPrompt(null);
   },
   draw(G, ctx, cam, pal) {
     ctx.fillStyle = '#0a0c18'; ctx.fillRect(0, 0, cam.w, cam.h);
     cam.begin(ctx); inkW(cam.zoom);
-    roomBase(ctx, this.w, '#453d55', '#6a4a36', '#2f2a3a', { seed: 41, wallTex: 'plaster', floorTex: 'wood' });
-    // floorboards + rug
-    ctx.fillStyle = 'rgba(0,0,0,.12)'; for (let x = 0; x < this.w; x += 46) ctx.fillRect(x, 0, 2, ROOM_DEPTH + 8);
-    cut(ctx, '#6a3a4a', 560, 2, 300, ROOM_DEPTH + 4); cut(ctx, '#7a4a5a', 580, 5, 260, ROOM_DEPTH - 2);
-    // front door
-    cut(ctx, '#5a3a2a', 40, -FLOOR_H * .92, 56, FLOOR_H * .92, 2); cut(ctx, '#d8c070', 84, -FLOOR_H * .45, 5, 5, 2);
-    cut(ctx, '#3a3448', 110, -FLOOR_H * .95, 5, 26); cut(ctx, '#d8c070', 108, -FLOOR_H * .9, 9, 5, 2);
-    // ---- bedroom end: bed, headboard, nightstand, alarm clock, poster
+    roomBase(ctx, this.w, '#4a4258', '#6a4a36', '#2f2a3a', { seed: 41, wallTex: 'plaster', floorTex: 'wood' });
     const B = this.bed;
-    cut(ctx, '#4a3040', B - 96, -FLOOR_H * 1.0, 190, FLOOR_H * .55, 5);      // headboard
-    shadowCut(ctx, '#3a3448', B - 100, -48, 210, 48, 4);                      // frame
-    cut(ctx, '#e8e2d2', B - 96, -62, 200, 18, 6);                             // mattress
-    cut(ctx, G.flags.madeBed ? '#4a6a8a' : '#4a6a8a', B - 46, -66, 150, 24, 8); // duvet
-    if (!G.flags.madeBed) { cut(ctx, '#5a7a9a', B - 30, -72, 120, 16, 8); cut(ctx, '#41607e', B + 40, -70, 70, 18, 8); }
-    cut(ctx, '#f2ece0', B - 90, -76, 58, 20, 8);                              // pillow
-    shadowCut(ctx, '#5a3f2a', B + 130, -40, 56, 40, 3);                       // nightstand
-    cut(ctx, G.flags.clock ? '#3a1a1a' : '#b0413e', B + 142, -52, 30, 13, 2);
-    if (!G.flags.clock && Math.floor(G.clock * 400) % 2 === 0) { ctx.fillStyle = '#ff5a4a'; ctx.font = `bold 9px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('7:12', B + 157, -45); glow(ctx, B + 157, -45, 70, 'rgba(255,90,74,A)', .3); }
-    cut(ctx, '#6a5a3a', B + 196, -96, 4, 96); cut(ctx, '#ffe6a8', B + 182, -116, 32, 22, 4); Lights.add(B + 198, -110, 220, WARM_L, .7); Lights.caster(B + 198, 14, 200, .6);
-    cut(ctx, '#2a3a5a', B - 80, -FLOOR_H * 1.55, 90, 70, 2); ctx.fillStyle = '#d9b23a'; ctx.beginPath(); ctx.arc(B - 35, -FLOOR_H * 1.55 + 34, 18, 0, TAU); ctx.fill();
-    // alarm clock + phone on a side table
-    shadowCut(ctx, '#5a3f2a', 440, -34, 64, 34, 2); if (!G.flags.phone) cut(ctx, '#1c1a24', 462, -41, 13, 8, 2);
-    // ---- living end: couch, TV, shelves, record player
-    shadowCut(ctx, '#6a3a4a', 560, -40, 160, 40, 8); cut(ctx, '#7a4a5a', 560, -64, 160, 28, 8); cut(ctx, '#7a4a5a', 552, -52, 16, 52, 6); cut(ctx, '#7a4a5a', 712, -52, 16, 52, 6);
-    cut(ctx, '#8a5a6a', 600, -70, 30, 12, 5); cut(ctx, '#5a6a8a', 660, -70, 30, 12, 5);
-    shadowCut(ctx, '#2a2436', 600, -FLOOR_H * .62, 120, 66, 3); cut(ctx, G.flags.tv ? '#6ab8ff' : '#0a0c14', 606, -FLOOR_H * .62 + 6, 108, 54);
-    if (G.flags.tv) { glow(ctx, 660, -FLOOR_H * .62 + 33, 200, 'rgba(120,190,255,A)', .3); ctx.fillStyle = 'rgba(255,255,255,.22)'; ctx.fillRect(612 + (G.clock * 800) % 90, -FLOOR_H * .62 + 14, 32, 38); }
-    shadowCut(ctx, '#4a3a2a', 840, -46, 100, 46, 2); cut(ctx, '#2a2436', 852, -54, 76, 10, 2);
-    if (G.flags.music) { ctx.fillStyle = '#e8e2d2'; ctx.font = `14px ${FONT}`; ctx.textAlign = 'center'; for (let i = 0; i < 3; i++) { const ph = (G.clock * 300 + i * .33) % 1; ctx.globalAlpha = 1 - ph; ctx.fillText('♪', 890 + Math.sin(ph * 7 + i) * 14, -60 - ph * 60); } ctx.globalAlpha = 1; }
-    cut(ctx, '#5a3f2a', 960, -FLOOR_H * 1.15, 8, FLOOR_H * .55); cut(ctx, '#5a3f2a', 968, -FLOOR_H * 1.15, 96, 6); cut(ctx, '#5a3f2a', 968, -FLOOR_H * .9, 96, 6);
-    const bc = ['#b0413e', '#3e8a5b', '#2f6f9f', '#d9b23a', '#5a4a9f']; for (let i = 0; i < 9; i++) cut(ctx, bc[i % 5], 974 + i * 10, -FLOOR_H * 1.15 - 22 + hash2(i, 2) * 6, 8, 22 - hash2(i, 2) * 6);
-    // big window between the two halves
-    cut(ctx, '#0d1226', 740, -FLOOR_H * 1.5, 190, FLOOR_H * .95, 3); ctx.fillStyle = '#ffe2a0'; for (let i = 0; i < 70; i++) { ctx.globalAlpha = .3 + hash2(i, 9) * .6; ctx.fillRect(745 + hash2(i, 4) * 180, -FLOOR_H * 1.45 + hash2(i, 5) * 80, 2, 3); } ctx.globalAlpha = 1; cut(ctx, '#3a3448', 833, -FLOOR_H * 1.5, 4, FLOOR_H * .95);
-    // kitchen: counter, wallet, fridge, kettle
-    shadowCut(ctx, '#8a8a90', 1040, -46, 180, 46, 2); cut(ctx, '#3a3a44', 1040, -42, 180, 6);
-    if (!G.flags.wallet) cut(ctx, '#5a3a2a', 1082, -54, 18, 9, 2);
-    cut(ctx, '#2a2c3a', 1150, -50, 34, 22, 2); cut(ctx, '#c0c4cc', 1196, -58, 16, 16, 3);
-    shadowCut(ctx, '#c8c8cc', 1210, -FLOOR_H * .95, 56, FLOOR_H * .95, 3); cut(ctx, '#6a6a70', 1216, -FLOOR_H * .6, 44, 3); cut(ctx, '#6a6a70', 1254, -FLOOR_H * .8, 3, 14); cut(ctx, '#6a6a70', 1254, -FLOOR_H * .5, 3, 14);
-    cut(ctx, '#d9b23a', 1222, -FLOOR_H * .95 - 14, 20, 14, 2);
+    // ---- bedroom: darker wall paint, rug, bed, nightstand, dresser, wardrobe, window
+    Tex.paint(ctx, 'plaster', 43, '#3e4a62', -200, -FLOOR_H * 1.8, 600, FLOOR_H * 1.8);
+    cut(ctx, '#2f2a3a', 398, -FLOOR_H * 1.8, 4, FLOOR_H * 1.8);
+    cut(ctx, '#5a3a4a', B - 60, 3, 200, ROOM_DEPTH + 2); cut(ctx, '#6a4a5a', B - 54, 6, 188, ROOM_DEPTH - 4); ctx.fillStyle = 'rgba(255,255,255,.06)'; for (let i = 0; i < 6; i++) ctx.fillRect(B - 54 + i * 32, 6, 14, ROOM_DEPTH - 4);
+    // window with curtains
+    cut(ctx, '#0d1226', B + 20, -FLOOR_H * 1.55, 84, 64, 2); ctx.fillStyle = '#ffe2a0'; for (let i = 0; i < 26; i++) { ctx.globalAlpha = .3 + hash2(i, 9) * .6; ctx.fillRect(B + 24 + hash2(i, 4) * 76, -FLOOR_H * 1.5 + hash2(i, 5) * 54, 2, 3); } ctx.globalAlpha = 1;
+    cut(ctx, '#3a3448', B + 60, -FLOOR_H * 1.55, 3, 64); cut(ctx, '#3a3448', B + 20, -FLOOR_H * 1.55 + 30, 84, 3);
+    cut(ctx, '#6a3a4a', B + 8, -FLOOR_H * 1.6, 20, 78, 2); cut(ctx, '#6a3a4a', B + 96, -FLOOR_H * 1.6, 20, 78, 2); cut(ctx, '#8a5a3a', B + 4, -FLOOR_H * 1.62, 116, 4, 2);
+    // bed — 2m long, headboard against the wall
+    box(ctx, '#5a3a2a', B - 42, -50, 76, 50, 3);                                   // headboard panel
+    cut(ctx, '#6a4a3a', B - 38, -46, 68, 24, 2); cut(ctx, 'rgba(0,0,0,.2)', B - 6, -46, 2, 24);
+    box(ctx, '#4a3020', B - 34, -18, 74, 18, 2);                                   // frame
+    cut(ctx, '#e8e2d2', B - 32, -26, 70, 10, 3);                                   // mattress
+    cut(ctx, G.flags.madeBed ? '#4a6a8a' : '#4a6a8a', B - 4, -30, 44, 12, 4);      // duvet
+    cut(ctx, shade('#4a6a8a', 1.15), B - 4, -30, 44, 3, 3);
+    if (!G.flags.madeBed) { cut(ctx, '#5a7a9a', B + 4, -33, 30, 8, 4); cut(ctx, '#41607e', B + 20, -31, 22, 9, 4); }
+    cut(ctx, '#f4efe4', B - 30, -32, 22, 8, 4); cut(ctx, '#e8e2d2', B - 30, -26, 22, 3, 2);   // pillow
+    cut(ctx, 'rgba(0,0,0,.25)', B - 34, -1, 74, 3);
+    // nightstand + alarm clock + lamp
+    box(ctx, '#5a3f2a', B + 50, -26, 22, 26, 2); cut(ctx, '#3a2a1a', B + 53, -18, 16, 2); cut(ctx, '#d8c070', B + 60, -13, 3, 3);
+    cut(ctx, G.flags.clock ? '#2a1a1a' : '#8a2a2a', B + 54, -34, 14, 7, 1);
+    if (!G.flags.clock && Math.floor(G.clock * 400) % 2 === 0) { ctx.fillStyle = '#ff5a4a'; ctx.font = `bold 5px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('7:12', B + 61, -30.5); Lights.add(B + 61, -30, 60, '255,90,74', .5); }
+    cut(ctx, '#6a5a3a', B + 80, -FLOOR_H * .95, 3, FLOOR_H * .95); cut(ctx, '#3a3040', B + 74, -4, 15, 4, 2); cut(ctx, '#ffe6a8', B + 69, -FLOOR_H * 1.08, 25, 14, 4); Lights.add(B + 81, -FLOOR_H * 1.0, 200, WARM_L, .7); Lights.caster(B + 81, 14, 180, .6);
+    // mirror + dresser
+    box(ctx, '#5a3f2a', 268, -34, 66, 34, 2); for (let i = 0; i < 3; i++) { cut(ctx, '#4a3020', 274 + i * 21, -28, 18, 22, 1); cut(ctx, '#d8c070', 282 + i * 21, -18, 3, 3); }
+    cut(ctx, '#3a3448', 282, -FLOOR_H * .95, 38, 50, 3); cut(ctx, '#7a90a8', 285, -FLOOR_H * .95 + 3, 32, 44, 2); cut(ctx, 'rgba(255,255,255,.15)', 288, -FLOOR_H * .95 + 6, 8, 38, 2);
+    // wardrobe
+    box(ctx, '#4a3020', 340, -FLOOR_H * 1.15, 52, FLOOR_H * 1.15, 2); cut(ctx, '#3a2418', 365, -FLOOR_H * 1.15 + 4, 2, FLOOR_H * 1.15 - 8); cut(ctx, '#d8c070', 360, -FLOOR_H * .55, 3, 6); cut(ctx, '#d8c070', 369, -FLOOR_H * .55, 3, 6);
+    // pictures on the bedroom wall
+    cut(ctx, '#2a2436', B - 40, -FLOOR_H * 1.45, 26, 20, 1); cut(ctx, '#3a5a8a', B - 37, -FLOOR_H * 1.45 + 3, 20, 14); ctx.fillStyle = '#e8e2d2'; ctx.beginPath(); ctx.arc(B - 27, -FLOOR_H * 1.45 + 10, 4, 0, TAU); ctx.fill();
+    cut(ctx, '#2a2436', B - 8, -FLOOR_H * 1.4, 18, 14, 1); cut(ctx, '#8a5a3a', B - 5, -FLOOR_H * 1.4 + 3, 12, 8);
+    // side table with the phone
+    box(ctx, '#5a3f2a', 358, -22, 28, 22, 2); if (!G.flags.phone) cut(ctx, '#1c1a24', 368, -26, 8, 5, 1);
+    // ---- living room: couch, coffee table, TV unit, shelves, record player, floor lamp
+    cut(ctx, '#3a2a30', 470, 3, 260, ROOM_DEPTH + 2); cut(ctx, '#4a3a40', 476, 6, 248, ROOM_DEPTH - 4);
+    box(ctx, '#6a3a4a', 470, -26, 92, 26, 5); cut(ctx, '#7a4a5a', 466, -40, 100, 18, 6); cut(ctx, '#7a4a5a', 466, -36, 10, 36, 4); cut(ctx, '#7a4a5a', 556, -36, 10, 36, 4);
+    cut(ctx, '#8a5a6a', 482, -44, 20, 8, 3); cut(ctx, '#5a6a8a', 522, -44, 20, 8, 3);
+    box(ctx, '#5a3f2a', 590, -14, 52, 14, 2); cut(ctx, '#e8e2d2', 604, -18, 14, 4, 1); cut(ctx, '#c0392b', 624, -19, 6, 5, 1);
+    box(ctx, '#3a3040', 520, -FLOOR_H * .55, 78, 8, 1); box(ctx, '#2a2436', 528, -FLOOR_H * .55 - 44, 62, 40, 2); cut(ctx, G.flags.tv ? '#6ab8ff' : '#0a0c14', 531, -FLOOR_H * .55 - 41, 56, 34);
+    if (G.flags.tv) { Lights.add(559, -FLOOR_H * .55 - 24, 200, '120,190,255', .7); ctx.fillStyle = 'rgba(255,255,255,.22)'; ctx.fillRect(534 + (G.clock * 800) % 44, -FLOOR_H * .55 - 36, 12, 24); }
+    box(ctx, '#3a3040', 528, -FLOOR_H * .55, 62, 8, 1);
+    // shelves with books and a plant
+    cut(ctx, '#5a3f2a', 640, -FLOOR_H * 1.35, 60, 4); cut(ctx, '#5a3f2a', 640, -FLOOR_H * 1.05, 60, 4);
+    const bc = ['#b0413e', '#3e8a5b', '#2f6f9f', '#d9b23a', '#5a4a9f', '#e8e2d2']; for (let i = 0; i < 9; i++) cut(ctx, bc[i % 6], 643 + i * 6, -FLOOR_H * 1.35 - 14 + hash2(i, 2) * 4, 5, 14 - hash2(i, 2) * 4);
+    cut(ctx, '#5a3a2a', 646, -FLOOR_H * 1.05 - 10, 10, 10, 1); ctx.fillStyle = '#2a6a4a'; ctx.beginPath(); ctx.arc(651, -FLOOR_H * 1.05 - 14, 7, 0, TAU); ctx.fill(); cut(ctx, '#2a2436', 668, -FLOOR_H * 1.05 - 12, 26, 12, 1);
+    box(ctx, '#4a3a2a', 680, -22, 44, 22, 2); cut(ctx, '#2a2436', 684, -26, 36, 5, 1); cut(ctx, '#1c1a24', 697, -28, 12, 2, 1);
+    if (G.flags.music) { ctx.fillStyle = '#e8e2d2'; ctx.font = `9px ${FONT}`; ctx.textAlign = 'center'; for (let i = 0; i < 3; i++) { const ph = (G.clock * 300 + i * .33) % 1; ctx.globalAlpha = 1 - ph; ctx.fillText('♪', 702 + Math.sin(ph * 7 + i) * 8, -34 - ph * 40); } ctx.globalAlpha = 1; }
+    cut(ctx, '#6a5a3a', 752, -FLOOR_H * 1.0, 3, FLOOR_H * 1.0); cut(ctx, '#3a3040', 746, -4, 15, 4, 2); cut(ctx, '#ffe6a8', 741, -FLOOR_H * 1.12, 25, 14, 4); Lights.add(753, -FLOOR_H * 1.05, 220, WARM_L, .7); Lights.caster(753, 14, 200, .6);
+    // living room window
+    cut(ctx, '#0d1226', 600, -FLOOR_H * 1.75, 130, 74, 2); ctx.fillStyle = '#ffe2a0'; for (let i = 0; i < 46; i++) { ctx.globalAlpha = .3 + hash2(i, 9) * .6; ctx.fillRect(604 + hash2(i, 4) * 122, -FLOOR_H * 1.7 + hash2(i, 5) * 64, 2, 3); } ctx.globalAlpha = 1; cut(ctx, '#3a3448', 663, -FLOOR_H * 1.75, 3, 74); cut(ctx, '#3a3448', 600, -FLOOR_H * 1.75 + 36, 130, 3);
+    // ---- kitchen: counter with sink and hob, cabinets, fridge
+    Tex.paint(ctx, 'tile', 47, '#3a4448', 790, -FLOOR_H * .95, 250, FLOOR_H * .95 - 30);
+    box(ctx, '#8a8a90', 800, -32, 150, 32, 1); cut(ctx, '#3a3a44', 800, -34, 150, 4); for (let i = 0; i < 5; i++) { cut(ctx, '#7a7a80', 804 + i * 30, -26, 26, 22, 1); cut(ctx, '#d8c070', 815 + i * 30, -16, 4, 2); }
+    cut(ctx, '#5a6a72', 812, -37, 30, 3, 1); cut(ctx, '#c0c4cc', 826, -46, 2, 10); cut(ctx, '#c0c4cc', 826, -46, 8, 2);
+    cut(ctx, '#1c1c24', 880, -36, 34, 3); for (let i = 0; i < 2; i++) cut(ctx, '#2a2a30', 886 + i * 14, -35, 9, 2);
+    if (!G.flags.wallet) cut(ctx, '#5a3a2a', 848, -38, 12, 5, 1);
+    for (let i = 0; i < 4; i++) box(ctx, '#5a4a3a', 800 + i * 38, -FLOOR_H * .95, 34, 26, 1);
+    box(ctx, '#2a2c3a', 920, -44, 22, 12, 1); cut(ctx, '#3a4a5a', 923, -42, 16, 8, 1);
+    box(ctx, '#d0d0d4', 950, -FLOOR_H * 1.0, 34, FLOOR_H * 1.0, 3); cut(ctx, '#8a8a90', 950, -FLOOR_H * .62, 34, 2); cut(ctx, '#6a6a70', 978, -FLOOR_H * .85, 2, 10); cut(ctx, '#6a6a70', 978, -FLOOR_H * .52, 2, 10);
     // plant + balcony door
-    cut(ctx, '#5a3a2a', 1300, -30, 30, 30, 3); ctx.fillStyle = '#2a6a4a'; for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.ellipse(1315 + Math.cos(i * 1.3) * 18, -52 + Math.sin(i * 1.3) * 12, 20, 9, i * .7, 0, TAU); ctx.fill(); }
-    cut(ctx, '#0d1226', 1400, -FLOOR_H * 1.2, 90, FLOOR_H * 1.2); ctx.fillStyle = '#ffe2a0'; ctx.globalAlpha = .45; for (let i = 0; i < 22; i++) ctx.fillRect(1405 + hash2(i, 7) * 80, -FLOOR_H * 1.15 + hash2(i, 8) * 100, 2, 3); ctx.globalAlpha = 1; cut(ctx, '#3a3448', 1443, -FLOOR_H * 1.2, 4, FLOOR_H * 1.2);
+    cut(ctx, '#5a3a2a', 1030, -18, 18, 18, 2); ctx.fillStyle = '#2a6a4a'; for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.ellipse(1039 + Math.cos(i * 1.3) * 11, -30 + Math.sin(i * 1.3) * 7, 12, 5, i * .7, 0, TAU); ctx.fill(); }
+    cut(ctx, '#0d1226', 1070, -FLOOR_H * 1.15, 90, FLOOR_H * 1.15); ctx.fillStyle = '#ffe2a0'; ctx.globalAlpha = .45; for (let i = 0; i < 22; i++) ctx.fillRect(1075 + hash2(i, 7) * 80, -FLOOR_H * 1.1 + hash2(i, 8) * 100, 2, 3); ctx.globalAlpha = 1; cut(ctx, '#3a3448', 1113, -FLOOR_H * 1.15, 4, FLOOR_H * 1.15); cut(ctx, '#3a3448', 1070, -FLOOR_H * 1.15, 90, 3);
+    // front door
+    box(ctx, '#5a3a2a', 40, -FLOOR_H * .92, 44, FLOOR_H * .92, 2); cut(ctx, '#d8c070', 76, -FLOOR_H * .45, 4, 4, 2); cut(ctx, '#3a3448', 96, -FLOOR_H * .95, 4, 20); cut(ctx, '#d8c070', 94, -FLOOR_H * .9, 8, 4, 2);
     // ceiling lamps
-    for (const lx of [300, 700, 1120]) { cut(ctx, '#6a5a3a', lx + 29, -FLOOR_H * 1.9, 2, 16); cut(ctx, '#ffe6a8', lx, -FLOOR_H * 1.78, 60, 8, 4); Lights.add(lx + 30, -FLOOR_H * 1.7, 320, WARM_L, .7); Lights.caster(lx + 30, 16, 300, .7); }
+    for (const lx of [200, 560, 880]) { cut(ctx, '#6a5a3a', lx + 19, -FLOOR_H * 1.95, 2, 14); cut(ctx, '#ffe6a8', lx, -FLOOR_H * 1.82, 40, 6, 3); Lights.add(lx + 20, -FLOOR_H * 1.75, 300, WARM_L, .65); Lights.caster(lx + 20, 16, 280, .6); }
     G.player.draw(ctx, cam.zoom);
-    if ((G.player.pose.lie || 0) > .3) { cut(ctx, '#41607e', B - 16, -70, 170, 26, 9); cut(ctx, '#4a6a8a', B - 20, -74, 140, 24, 9); }
+    if ((G.player.pose.lie || 0) > .3) { cut(ctx, '#41607e', B - 8, -31, 50, 11, 5); cut(ctx, '#4a6a8a', B - 6, -33, 46, 9, 5); }
     Lights.draw(ctx, cam);
     cam.end(ctx);
   },
