@@ -198,6 +198,13 @@ class Actor {
     this.drawTorso(ctx, J);
     drawArm(J.armF, false, true);
     this.drawHead(ctx, J);
+    if (s.isPlayer && typeof Game !== 'undefined' && Game.jewelry) {
+      const jw = Game.jewelry, R = this.headR;
+      if (jw.includes('chain')) { ctx.strokeStyle = litCol('#c9a24a'); ctx.lineWidth = INKW * 1.4; ctx.beginPath(); ctx.moveTo(J.shx - this.shW * .5, J.shy + 2); ctx.quadraticCurveTo(J.shx + this.shW * .2, J.shy + this.torso * .28, J.shx + this.shW * .6, J.shy + 2); ctx.stroke(); }
+      if (jw.includes('watch')) { ctx.fillStyle = litCol('#c0c4cc'); ctx.beginPath(); ctx.arc(J.armF.ex + (J.armF.hx - J.armF.ex) * .8, J.armF.ey + (J.armF.hy - J.armF.ey) * .8, this.wArm * .5, 0, TAU); ctx.fill(); }
+      if (jw.includes('ring')) { ctx.fillStyle = litCol('#c9a24a'); ctx.fillRect(J.armF.hx - 1.5, J.armF.hy - 1, 3, 2); }
+      if (jw.includes('earring')) { ctx.fillStyle = litCol('#e8f0ff'); ctx.beginPath(); ctx.arc(J.head.x - R * .05, J.head.y + R * .3, R * .12, 0, TAU); ctx.fill(); }
+    }
   }
   drawLOD(ctx) {
     const s = this.spec; ctx.fillStyle = s.top.color;
