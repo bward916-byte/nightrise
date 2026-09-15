@@ -124,18 +124,19 @@ const LobbyScene = {
 // ---------- ELEVATOR PANEL + RIDE ----------
 const ElevatorScene = {
   name: 'elevator', where: 'Elevator', noZoom: true, sel: 83, mode: 'panel', t: 0, from: 83, to: 83, cur: 83, doors: 0,
-  enter(G, from) { this.mode = 'panel'; this.t = 0; this.doors = 1; Camera.locked = true; this.sel = G.floor === 83 ? 0 : 83; },
-  floors() { const f = [0]; for (let i = 2; i <= TOWER.floors; i++) f.push(i); f.push(99); return f; },
+  enter(G, from) { this.mode = 'panel'; this.t = 0; this.doors = 1; Camera.locked = true; this.sel = G.floor === PLAYER_FLOOR ? 0 : PLAYER_FLOOR; if (this.sel === -1) this.sel = 0; },
+  // only the floors you have business on: lobby, home, roof, plus anything unlocked later
+  floors() { const f = [0, PLAYER_FLOOR]; for (const x of (typeof Game !== 'undefined' && Game.unlockedFloors) || []) if (!f.includes(x)) f.push(x); f.sort((a, b) => a - b); f.push(99); return f; },
+  labelFor(f) { return f === 0 ? 'Lobby' : f === 99 ? 'Roof' : f === PLAYER_FLOOR ? 'Home · 83' : 'Floor ' + f; },
   label(f) { return f === 0 ? 'L' : f === 99 ? 'R' : String(f); },
   update(G, dt) {
     this.t += dt;
     if (this.mode === 'panel') {
       const list = this.floors(); let i = list.indexOf(this.sel);
-      const cols = Camera.w < 700 ? 8 : 12;
       if (Input.consume('ArrowRight') || Input.consume('KeyD')) i = Math.min(list.length - 1, i + 1);
       if (Input.consume('ArrowLeft') || Input.consume('KeyA')) i = Math.max(0, i - 1);
-      if (Input.consume('ArrowDown') || Input.consume('KeyS')) i = Math.min(list.length - 1, i + cols);
-      if (Input.consume('ArrowUp') || Input.consume('KeyW')) i = Math.max(0, i - cols);
+      if (Input.consume('ArrowDown') || Input.consume('KeyS')) i = Math.min(list.length - 1, i + 1);
+      if (Input.consume('ArrowUp') || Input.consume('KeyW')) i = Math.max(0, i - 1);
       this.sel = list[i];
       if (Input.consume('Space') || Input.consume('Enter') || Input.consume('KeyE')) this.pick(G, this.sel);
       if (Input.consume('Escape')) G.go(G.elevatorFrom, 'elevator');
@@ -169,14 +170,12 @@ const ElevatorScene = {
     // the guy inside
     ctx.save(); ctx.translate(cx + cw / 2, bot - 60); ctx.scale(2.4, 2.4); const p = G.player; const sx = p.x, sy = p.y, sf = p.facing; p.x = 0; p.y = 0; p.facing = 1; inkW(2.4); p.draw(ctx, 2.4); p.x = sx; p.y = sy; p.facing = sf; ctx.restore();
     if (this.mode === 'panel') {
-      // button panel overlay on the right wall
-      const list = this.floors(), cols = W < 700 ? 8 : 12, bw = W < 700 ? 34 : 38, gap = 6;
-      const pw = cols * (bw + gap) + 20, ph = Math.ceil(list.length / cols) * (bw + gap) + 60;
-      const px = W / 2 - pw / 2, py = Math.max(top + 70, H / 2 - ph / 2);
+      // brass panel: one big button per reachable floor
+      const list = this.floors(), bh = 46, gap = 8, pw = Math.min(W - 40, 300), ph = list.length * (bh + gap) + 70, px = W / 2 - pw / 2, py = Math.max(top + 70, H / 2 - ph / 2);
       shadowCut(ctx, '#b8a068', px, py, pw, ph, 8);
       ctx.fillStyle = '#2a2436'; ctx.font = `bold 14px ${FONT}`; ctx.textAlign = 'center'; ctx.fillText('SELECT FLOOR', px + pw / 2, py + 22);
-      list.forEach((f, i) => { const r = Math.floor(i / cols), c = i % cols, x = px + 10 + c * (bw + gap), y = py + 40 + r * (bw + gap); const isSel = f === this.sel, here = f === G.floor; UI.button(ctx, 'fl:' + f, x, y, bw, bw, this.label(f), true, isSel ? '#ffd36a' : here ? '#6a6a7a' : f === 83 ? '#ffe6c0' : '#ece4d0', '#1c1a24'); });
-      UI.button(ctx, 'esc', px + pw / 2 - 110, py + ph - 14, 100, 30, 'Step out', true); UI.button(ctx, 'fl:83', px + pw / 2 + 10, py + ph - 14, 100, 30, 'Home · 83', true, '#ffe6c0');
+      list.forEach((f, i) => { const y = py + 40 + i * (bh + gap), isSel = f === this.sel, here = f === G.floor; UI.button(ctx, 'fl:' + f, px + 14, y, pw - 28, bh, this.labelFor(f) + (here ? '  ·  you are here' : ''), false, isSel ? '#ffd36a' : here ? '#8a8a96' : '#ece4d0', '#1c1a24'); });
+      UI.button(ctx, 'esc', px + pw / 2 - 50, py + ph - 24, 100, 30, 'Step out', true);
     }
   },
 };
