@@ -76,6 +76,57 @@ function buildCity() { return City.home(); }
 // traffic light phase: 0..1 over a 24s cycle. ew green [0,.4), yellow [.4,.5), ns green [.5,.9), yellow [.9,1)
 function lightPhase(clock) { return ((clock * 50) % 24) / 24; }
 function lightFor(dir, clock) { const p = lightPhase(clock); if (dir === 'ew') return p < .4 ? 'green' : p < .5 ? 'yellow' : 'red'; return p < .5 ? 'red' : p < .9 ? 'green' : 'yellow'; }
+// ---------- texture engine ----------
+// Surfaces are painted procedurally from a seed: grain, grime, stains, cracks, patches.
+// Nothing is a flat rectangle, and no two walls come out the same.
+const Tex = {
+  cache: {},
+  // deterministic value noise
+  n(x, y, s) { return hash2(Math.floor(x) * 73856093 ^ (s || 0), Math.floor(y) * 19349663); },
+  // build a small tile once per (style,seed) and repeat it — cheap and stable
+  tile(style, seed, base, w, h) {
+    const key = style + '|' + seed + '|' + base + '|' + w + 'x' + h;
+    if (this.cache[key]) return this.cache[key];
+    if (typeof document === 'undefined' && typeof OffscreenCanvas === 'undefined') return null;
+    let cv; try { cv = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(w, h) : document.createElement('canvas'); } catch (e) { return null; }
+    cv.width = w; cv.height = h; const c = cv.getContext('2d');
+    const r = RNG(seed * 2654435761 + style.length * 97);
+    c.fillStyle = base; c.fillRect(0, 0, w, h);
+    const speck = (n, a, col, sz) => { c.fillStyle = col; for (let i = 0; i < n; i++) { c.globalAlpha = a * (.4 + r() * .6); c.fillRect(r() * w, r() * h, sz * (.5 + r()), sz * (.5 + r())); } c.globalAlpha = 1; };
+    if (style === 'plaster') { speck(260, .06, '#000', 2); speck(160, .05, '#fff', 2);
+      for (let i = 0; i < 5; i++) { c.globalAlpha = .05 + r() * .06; c.fillStyle = '#000'; c.beginPath(); c.ellipse(r() * w, r() * h, 12 + r() * 40, 8 + r() * 26, r() * 3, 0, TAU); c.fill(); } c.globalAlpha = 1;
+      c.strokeStyle = 'rgba(0,0,0,.14)'; c.lineWidth = 1; for (let i = 0; i < 3; i++) { let x = r() * w, y = r() * h; c.beginPath(); c.moveTo(x, y); for (let k = 0; k < 5; k++) { x += (r() - .5) * 24; y += r() * 18; c.lineTo(x, y); } c.stroke(); } }
+    else if (style === 'concrete') { speck(400, .07, '#000', 2); speck(200, .05, '#fff', 3);
+      for (let i = 0; i < 6; i++) { c.globalAlpha = .06; c.fillStyle = r() < .5 ? '#000' : '#fff'; c.fillRect(r() * w, r() * h, 20 + r() * 60, 14 + r() * 40); } c.globalAlpha = 1; }
+    else if (style === 'tile') { const t = 26; c.strokeStyle = 'rgba(0,0,0,.18)'; c.lineWidth = 1.4;
+      for (let x = 0; x <= w; x += t) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, h); c.stroke(); }
+      for (let y = 0; y <= h; y += t) { c.beginPath(); c.moveTo(0, y); c.lineTo(w, y); c.stroke(); }
+      for (let x = 0; x < w; x += t) for (let y = 0; y < h; y += t) { c.globalAlpha = .04 + r() * .07; c.fillStyle = r() < .5 ? '#000' : '#fff'; c.fillRect(x + 1, y + 1, t - 2, t - 2); } c.globalAlpha = 1; speck(120, .05, '#000', 2); }
+    else if (style === 'wood') { c.strokeStyle = 'rgba(0,0,0,.2)'; c.lineWidth = 1.2;
+      for (let y = 0; y < h; y += 14) { c.beginPath(); c.moveTo(0, y); c.lineTo(w, y); c.stroke(); c.globalAlpha = .05 + r() * .08; c.fillStyle = r() < .5 ? '#000' : '#fff'; c.fillRect(0, y, w, 14); c.globalAlpha = 1;
+        for (let i = 0; i < 3; i++) { c.strokeStyle = 'rgba(0,0,0,.12)'; c.beginPath(); const yy = y + 3 + r() * 8; c.moveTo(0, yy); c.bezierCurveTo(w * .3, yy + (r() - .5) * 4, w * .6, yy + (r() - .5) * 4, w, yy + (r() - .5) * 3); c.stroke(); c.strokeStyle = 'rgba(0,0,0,.2)'; } }
+      for (let x = 0; x < w; x += 60 + r() * 50) { c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(x, 0, 1.5, h); } }
+    else if (style === 'brickwall') { const bw = 28, bh = 12; for (let y = 0, row = 0; y < h; y += bh, row++) for (let x = (row % 2) * bw / 2 - bw; x < w; x += bw) { c.globalAlpha = .06 + r() * .1; c.fillStyle = r() < .45 ? '#000' : '#fff'; c.fillRect(x + 1, y + 1, bw - 2, bh - 2); } c.globalAlpha = 1;
+      c.strokeStyle = 'rgba(0,0,0,.22)'; c.lineWidth = 1; for (let y = 0; y < h; y += bh) { c.beginPath(); c.moveTo(0, y); c.lineTo(w, y); c.stroke(); } }
+    else if (style === 'grime') { c.clearRect(0, 0, w, h); for (let i = 0; i < 26; i++) { const g2 = c.createRadialGradient(r() * w, r() * h, 0, r() * w, r() * h, 10 + r() * 50); g2.addColorStop(0, `rgba(0,0,0,${.05 + r() * .1})`); g2.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = g2; c.fillRect(0, 0, w, h); } }
+    const pat = { canvas: cv };
+    this.cache[key] = pat; return pat;
+  },
+  // paint a textured surface
+  paint(ctx, style, seed, base, x, y, w, h) {
+    ctx.fillStyle = base; ctx.fillRect(x, y, w, h);
+    const t = this.tile(style, seed, base, 128, 128); if (!t) return;
+    const p = ctx.createPattern(t.canvas, 'repeat'); if (!p) return;
+    ctx.save(); ctx.translate(x, y); ctx.fillStyle = p; ctx.fillRect(0, 0, w, h); ctx.restore();
+  },
+  // dirt streaks running down from a ledge
+  streaks(ctx, x, y, w, h, seed, a) {
+    ctx.save(); ctx.globalAlpha = a || .1; ctx.fillStyle = '#000';
+    for (let i = 0; i < 9; i++) { const sx = x + this.n(i, 1, seed) * w, sw = 2 + this.n(i, 2, seed) * 7, sh = h * (.2 + this.n(i, 3, seed) * .8); ctx.fillRect(sx, y, sw, sh); }
+    ctx.restore();
+  },
+};
+
 // ---------- lighting ----------
 // Scene is drawn dim, then a light buffer is composited additively. Every lamp,
 // shop window, neon sign, headlight and lit apartment registers a light each frame.
@@ -197,6 +248,12 @@ function drawBuilding(ctx, b, pal, zoom, isPlayerFloor) {
   // silhouette with drop shadow
   const slab = (dx, dy, col) => { ctx.fillStyle = col; if (b.setback) { const sy = -b.setback.at * FLOOR_H; ctx.fillRect(b.x + dx, sy + dy, b.w, b.h - (-sy) + 0); ctx.fillRect(xAt(b.setback.at) + dx, -b.h + dy, widthAt(b.setback.at), -sy - b.h * 0 + b.h + sy); } else ctx.fillRect(b.x + dx, -b.h + dy, b.w, b.h); };
   slab(10, 10, 'rgba(0,0,0,.35)'); slab(0, 0, base);
+  if (zoom > .13) { // surface texture + weathering, unique per building
+    const tx = st === 'brick' ? 'brickwall' : st === 'glass' || st === 'dark' ? null : 'concrete';
+    if (tx) Tex.paint(ctx, tx, b.id, base, xAt(0), -b.h, widthAt(0), b.h);
+    Tex.streaks(ctx, b.x, -b.h + 10, b.w, b.h * .35, b.id, .09);
+    if (hash2(b.id, 41) < .35) { ctx.save(); ctx.globalAlpha = .1; ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(b.x + b.w * hash2(b.id, 5), -b.h * hash2(b.id, 6), b.w * .3, b.h * .1, 0, 0, TAU); ctx.fill(); ctx.restore(); }
+  }
   const detail = FLOOR_H * zoom, cols = b.cols, winW = b.w / cols;
   if (detail < 1.6) {
     // far: faint floor bands + sparse lit dots
@@ -300,10 +357,19 @@ function drawAlley(ctx, city, pal, zoom) {
 }
 function drawStreet(ctx, city, pal, zoom, cam) {
   const b = cam.bounds(), x0 = b.x0 - 10, x1 = b.x1 + 10;
-  ctx.fillStyle = '#3a3d52'; ctx.fillRect(x0, GROUND, x1 - x0, WALK_DEPTH + 6);
+  Tex.paint(ctx, 'tile', 3, '#3a3d52', x0, GROUND, x1 - x0, WALK_DEPTH + 6);
   ctx.fillStyle = '#4a4d62'; ctx.fillRect(x0, GROUND, x1 - x0, 3);
+  if (zoom > .3) { // cracks, patches, gum, stains on the pavement
+    for (let x = Math.floor(x0 / 160) * 160; x < x1; x += 160) { const k = hash2(x, 17);
+      if (k < .3) { ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; ctx.beginPath(); let cx2 = x, cy = GROUND + 6; ctx.moveTo(cx2, cy); for (let i = 0; i < 4; i++) { cx2 += (hash2(x, i) - .5) * 26; cy += hash2(x, i + 9) * 10; ctx.lineTo(cx2, cy); } ctx.stroke(); }
+      if (k > .5) { ctx.fillStyle = `rgba(0,0,0,${.05 + hash2(x, 4) * .08})`; ctx.beginPath(); ctx.ellipse(x + 40, GROUND + 10 + hash2(x, 6) * 22, 14 + hash2(x, 7) * 22, 5 + hash2(x, 8) * 6, 0, 0, TAU); ctx.fill(); }
+      if (k > .78) { ctx.fillStyle = 'rgba(20,20,26,.35)'; ctx.beginPath(); ctx.arc(x + 90, GROUND + 14 + hash2(x, 3) * 20, 2.2, 0, TAU); ctx.fill(); }
+    }
+  }
   if (zoom > .3) { ctx.fillStyle = 'rgba(0,0,0,.15)'; for (let x = Math.floor(x0 / 96) * 96; x < x1; x += 96) ctx.fillRect(x, GROUND, 2, WALK_DEPTH + 6); }
-  ctx.fillStyle = '#1a1c2c'; ctx.fillRect(x0, ROAD_Y, x1 - x0, ROAD_H);
+  Tex.paint(ctx, 'concrete', 9, '#1a1c2c', x0, ROAD_Y, x1 - x0, ROAD_H);
+  if (zoom > .25) { ctx.fillStyle = 'rgba(0,0,0,.35)'; for (let x = Math.floor(x0 / 240) * 240; x < x1; x += 240) { const k = hash2(x, 21); if (k < .4) { ctx.beginPath(); ctx.ellipse(x, ROAD_Y + ROAD_H * (.3 + k), 22 + k * 30, 5, 0, 0, TAU); ctx.fill(); } if (k > .7) { ctx.fillStyle = '#2a2c3a'; ctx.fillRect(x + 30, ROAD_Y + ROAD_H * .55, 50, 6); ctx.fillStyle = 'rgba(0,0,0,.35)'; } }
+    for (let x = Math.floor(x0 / 900) * 900; x < x1; x += 900) { ctx.fillStyle = '#23252f'; ctx.beginPath(); ctx.ellipse(x + 300, ROAD_Y + ROAD_H * .62, 22, 8, 0, 0, TAU); ctx.fill(); ctx.fillStyle = 'rgba(255,255,255,.05)'; ctx.beginPath(); ctx.ellipse(x + 300, ROAD_Y + ROAD_H * .62 - 1, 22, 8, 0, Math.PI, TAU); ctx.fill(); } }
   ctx.fillStyle = '#c9b45a'; for (let x = Math.floor(x0 / 70) * 70; x < x1; x += 70) ctx.fillRect(x, ROAD_Y + ROAD_H / 2 - 1.5, 40, 3);
   ctx.fillStyle = '#2f3246'; ctx.fillRect(x0, ROAD_Y + ROAD_H, x1 - x0, 30);
   ctx.fillStyle = '#0a0c16'; ctx.fillRect(x0, ROAD_Y + ROAD_H + 30, x1 - x0, 40000);
