@@ -8,7 +8,7 @@ const FONT = '"Comic Neue","Comic Sans MS","Chalkboard SE","Segoe Print",sans-se
 // Legs: hip angle from straight-down, +forward. knee = fold backward.
 // Arms: shoulder angle from straight-down, +forward (PI = straight up). elbow = fold forward.
 // spine: lean from vertical, +forward. head: nod, +forward (down). bob: pelvis vertical offset.
-const POSE0 = { hipF: 0, kneeF: .06, hipB: 0, kneeB: .06, shF: 0, elF: .12, shB: 0, elB: .12, spine: 0, head: 0, bob: 0, shrug: 0, footF: 0, footB: 0, sit: 0 };
+const POSE0 = { hipF: 0, kneeF: .06, hipB: 0, kneeB: .06, shF: 0, elF: .12, shB: 0, elB: .12, spine: 0, head: 0, bob: 0, shrug: 0, footF: 0, footB: 0, sit: 0, lie: 0 };
 const P = o => Object.assign({}, POSE0, o);
 const POSTURES = {
   idle: t => P({ bob: Math.sin(t * 2.2) * .6, shF: .04, shB: -.04, elF: .18 + Math.sin(t * 2.2) * .02 }),
@@ -28,6 +28,11 @@ const POSTURES = {
   wave: t => P({ shF: 2.8, elF: .6 + Math.sin(t * 10) * .5, shB: -.05, elB: .1, head: -.08 }),
   think: t => P({ shF: .55, elF: 2.55, shB: -.1, elB: .1, head: .18, spine: .06 }),
   point: t => P({ shF: 1.55, elF: 0, shB: -.15, elB: .1, head: -.05 }),
+  inBed: t => P({ hipF: .06, kneeF: .16, hipB: -.04, kneeB: .1, shF: .22, elF: .3, shB: -.18, elB: .22, spine: .03, head: -.12 + Math.sin(t * .8) * .02, lie: 1, bob: Math.sin(t * .8) * .6 }),
+  sitUp: t => P({ hipF: 1.5, kneeF: 1.2, hipB: 1.5, kneeB: 1.1, shF: .7, elF: 1.1, shB: .7, elB: 1.0, spine: .22, head: .18, sit: 1 }),
+  stretch: t => P({ shF: 2.75 + Math.sin(t * 2) * .08, elF: .18, shB: 2.7, elB: .22, head: -.42, spine: -.2, kneeF: .05, kneeB: .05, bob: -1.5 }),
+  yawn: t => P({ shF: 2.2, elF: 2.2, shB: .1, elB: .2, head: -.3, spine: -.08 }),
+  sleepSit: t => P({ hipF: 1.5, kneeF: 1.5, hipB: 1.5, kneeB: 1.5, shF: .5, elF: .6, shB: .5, elB: .6, spine: .3, head: .4, sit: 1 }),
   sit: t => P({ hipF: 1.5, kneeF: 1.5, hipB: 1.5, kneeB: 1.5, shF: .9, elF: 1.3, shB: .9, elB: 1.3, spine: .05, bob: 0, sit: 1 }),
   cheer: t => P({ shF: 2.9 + Math.sin(t * 9) * .2, elF: .2, shB: 2.9 - Math.sin(t * 9) * .2, elB: .2, head: -.35, bob: Math.abs(Math.sin(t * 9)) * -4, spine: -.1 }),
   facepalm: t => P({ shF: 1.3, elF: 2.6, shB: -.05, elB: .1, head: .35, spine: .08 }),
@@ -134,6 +139,8 @@ class Actor {
   }
   draw(ctx, zoom) {
     const s = this.spec;
+    const lie = this.pose.lie || 0;
+    if (lie > .02) { ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(lie * Math.PI / 2); ctx.scale(1, 1); this.drawBody(ctx); ctx.restore(); return; }
     const dep = this.depth || 0;
     if (dep > 0) { ctx.save(); ctx.translate(this.x, this.y - dep * 210); const k = 1 - dep * .72; ctx.scale(this.facing * k, k); ctx.globalAlpha = 1 - dep * .25; this.drawBody(ctx); ctx.restore(); if (this.speech) this.drawSpeech(ctx, zoom); return; }
     if (typeof Lights !== 'undefined') Lights.groundShadow(ctx, this.x, this.y, this.h, this.h * .38);
