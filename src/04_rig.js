@@ -327,34 +327,34 @@ class Actor {
     if (s.age > .6) hatch(ctx, -R * .8, -R * .3, R * .5, R * .9, 3, .8, .18);
     // ear
     ctx.beginPath(); ctx.ellipse(-R * .05, R * .05, R * .18, R * .26, 0, 0, TAU); inkFill(ctx, s.skin);
-    // eye
-    const ey = -R * .12, ex = R * .48;
-    const open = this.blink < 0 ? .1 : e.eye;
-    ctx.fillStyle = PAPER_SHADOW ? SHADOW : FACE; ctx.strokeStyle = PAPER_SHADOW ? SHADOW : FACE; ctx.lineWidth = INKW;
-    if (s.glasses === 'shades') { ctx.beginPath(); ctx.roundRect(ex - R * .35, ey - R * .22, R * .62, R * .36, 3); ctx.fill(); ctx.beginPath(); ctx.moveTo(ex - R * .35, ey - R * .1); ctx.lineTo(-R * .05, ey - R * .15); ctx.stroke(); }
+    // ---- face, cutout style: small clean features that sit inside the head shape
+    const ey = -R * .1, ex = R * .42, lw = R * .09, open = this.blink < 0 ? .15 : e.eye;
+    const fc = PAPER_SHADOW ? SHADOW : litCol(FACE);
+    if (s.glasses === 'shades') { ctx.fillStyle = fc; ctx.beginPath(); ctx.roundRect(ex - R * .3, ey - R * .2, R * .58, R * .34, R * .1); ctx.fill(); ctx.fillRect(ex - R * .3, ey - R * .08, -R * .35, R * .05); }
     else {
-      if (open > .3) { ctx.beginPath(); ctx.ellipse(ex, ey, R * .13, R * .16 * open, 0, 0, TAU); ctx.fill(); if (!PAPER_SHADOW) { ctx.fillStyle = litCol('#ffffff'); ctx.beginPath(); ctx.arc(ex + R * .04, ey - R * .05, R * .04, 0, TAU); ctx.fill(); } ctx.fillStyle = PAPER_SHADOW ? SHADOW : FACE; }
-      else { ctx.beginPath(); ctx.moveTo(ex - R * .15, ey); ctx.lineTo(ex + R * .15, ey); ctx.stroke(); }
-      if (s.glasses !== 'none') { ctx.lineWidth = INKW * .9; ctx.beginPath(); if (s.glasses === 'round') ctx.arc(ex, ey, R * .3, 0, TAU); else ctx.rect(ex - R * .3, ey - R * .25, R * .6, R * .48); ctx.stroke(); ctx.beginPath(); ctx.moveTo(ex - R * .3, ey - R * .05); ctx.lineTo(-R * .05, ey - R * .12); ctx.stroke(); }
+      ctx.fillStyle = fc; ctx.beginPath(); ctx.ellipse(ex, ey, R * .11, R * .13 * clamp(open, .15, 1.3), 0, 0, TAU); ctx.fill();
+      if (open > .3 && !PAPER_SHADOW) { ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.beginPath(); ctx.arc(ex + R * .03, ey - R * .05, R * .035, 0, TAU); ctx.fill(); }
+      if (s.glasses !== 'none') { ctx.strokeStyle = fc; ctx.lineWidth = lw * .8; ctx.beginPath(); if (s.glasses === 'round') ctx.arc(ex, ey, R * .26, 0, TAU); else ctx.rect(ex - R * .26, ey - R * .22, R * .52, R * .42); ctx.stroke(); ctx.beginPath(); ctx.moveTo(ex - R * .26, ey - R * .06); ctx.lineTo(-R * .05, ey - R * .12); ctx.stroke(); }
     }
-    // brow
-    ctx.lineWidth = INKW * 1.4; ctx.beginPath(); const by = ey - R * .32 - e.brow * R * .12; ctx.moveTo(ex - R * .2, by + (e.brow < 0 ? -e.brow * R * .1 : 0)); ctx.lineTo(ex + R * .22, by - (e.brow > 0 ? 0 : 0) + (e.brow < 0 ? e.brow * R * .05 : 0)); ctx.stroke();
-    // nose
-    ctx.lineWidth = INKW; ctx.beginPath(); const nl = R * (.22 + s.face.nose * .08); ctx.moveTo(R * .8, ey + R * .1); ctx.quadraticCurveTo(R * 1.0 + nl * .3, ey + R * .35, R * .78, ey + R * .5); ctx.stroke();
+    // brow: a short soft bar that tilts with the expression
+    ctx.fillStyle = PAPER_SHADOW ? SHADOW : litCol(hc); ctx.save(); ctx.translate(ex, ey - R * .3 - e.brow * R * .08); ctx.rotate(-e.brow * .25); ctx.beginPath(); ctx.roundRect(-R * .2, -lw * .45, R * .42, lw * .9, lw * .4); ctx.fill(); ctx.restore();
+    // nose: a small wedge on the profile, same skin tone a shade darker
+    ctx.fillStyle = PAPER_SHADOW ? SHADOW : litCol(shade(s.skin, .82)); ctx.beginPath(); ctx.moveTo(R * .82, ey + R * .02); ctx.lineTo(R * 1.02 + s.face.nose * R * .05, ey + R * .3); ctx.lineTo(R * .8, ey + R * .38); ctx.closePath(); ctx.fill();
     // mouth
-    const my = R * .45, mx = R * .55;
-    ctx.beginPath();
-    if (e.mouth === 'smile') ctx.moveTo(mx - R * .2, my - R * .04), ctx.quadraticCurveTo(mx + R * .1, my + R * .2, mx + R * .3, my - R * .02);
-    else if (e.mouth === 'frown') ctx.moveTo(mx - R * .2, my + R * .08), ctx.quadraticCurveTo(mx + R * .1, my - R * .12, mx + R * .3, my + R * .05);
-    else if (e.mouth === 'o') { ctx.ellipse(mx + R * .05, my, R * .1, R * .16, 0, 0, TAU); ctx.fill(); }
-    else if (e.mouth === 'wave') ctx.moveTo(mx - R * .2, my), ctx.quadraticCurveTo(mx - R * .05, my - R * .15, mx + R * .05, my), ctx.quadraticCurveTo(mx + R * .15, my + R * .12, mx + R * .3, my);
-    else if (e.mouth === 'smirk') ctx.moveTo(mx - R * .2, my), ctx.quadraticCurveTo(mx + R * .1, my + R * .05, mx + R * .3, my - R * .1);
-    else ctx.moveTo(mx - R * .18, my), ctx.lineTo(mx + R * .28, my);
-    if (s.face.lips && e.mouth !== 'o') { ctx.strokeStyle = '#b0413e'; ctx.lineWidth = INKW * 1.6; ctx.stroke(); ctx.strokeStyle = PAPER_SHADOW ? SHADOW : FACE; ctx.lineWidth = INKW; }
+    const my = R * .42, mx = R * .5;
+    ctx.strokeStyle = s.face.lips && !PAPER_SHADOW ? litCol('#b0413e') : fc; ctx.lineWidth = s.face.lips ? lw * 1.4 : lw * .7; ctx.lineCap = 'round'; ctx.beginPath();
+    if (e.mouth === 'smile') { ctx.moveTo(mx - R * .16, my - R * .03); ctx.quadraticCurveTo(mx + R * .05, my + R * .14, mx + R * .26, my - R * .02); }
+    else if (e.mouth === 'frown') { ctx.moveTo(mx - R * .16, my + R * .06); ctx.quadraticCurveTo(mx + R * .05, my - R * .08, mx + R * .26, my + R * .04); }
+    else if (e.mouth === 'o') { ctx.stroke(); ctx.fillStyle = fc; ctx.beginPath(); ctx.ellipse(mx + R * .06, my, R * .08, R * .12, 0, 0, TAU); ctx.fill(); ctx.beginPath(); }
+    else if (e.mouth === 'wave') { ctx.moveTo(mx - R * .16, my); ctx.quadraticCurveTo(mx - R * .04, my - R * .1, mx + R * .05, my); ctx.quadraticCurveTo(mx + R * .14, my + R * .09, mx + R * .26, my); }
+    else if (e.mouth === 'smirk') { ctx.moveTo(mx - R * .16, my); ctx.quadraticCurveTo(mx + R * .08, my + R * .04, mx + R * .26, my - R * .07); }
+    else { ctx.moveTo(mx - R * .14, my); ctx.lineTo(mx + R * .24, my); }
     ctx.stroke();
+    // cheek: a touch of warmth on the front of the face
+    if (!PAPER_SHADOW) { ctx.fillStyle = 'rgba(200,90,90,.10)'; ctx.beginPath(); ctx.ellipse(R * .55, R * .12, R * .22, R * .14, 0, 0, TAU); ctx.fill(); }
     // facial hair
     const fh = s.facial;
-    if (fh === 'stubble') hatch(ctx, R * .1, R * .3, R * .8, R * .55, 4, .3, .3);
+    if (fh === 'stubble') { ctx.fillStyle = PAPER_SHADOW ? SHADOW : 'rgba(40,30,40,.22)'; ctx.beginPath(); ctx.moveTo(-R * .1, R * .35); ctx.quadraticCurveTo(-R * .05, R * .95, R * .45, R * .95); ctx.quadraticCurveTo(R * .95, R * .85, R * .9, R * .45); ctx.quadraticCurveTo(R * .55, R * .6, R * .1, R * .55); ctx.closePath(); ctx.fill(); }
     if (fh === 'mustache' || fh === 'goatee') { ctx.beginPath(); ctx.moveTo(mx - R * .25, my - R * .12); ctx.quadraticCurveTo(mx + R * .1, my - R * .35, mx + R * .38, my - R * .1); ctx.quadraticCurveTo(mx + R * .1, my - R * .18, mx - R * .25, my - R * .12); inkFill(ctx, hc); }
     if (fh === 'goatee') { ctx.beginPath(); ctx.moveTo(R * .15, R * .7); ctx.quadraticCurveTo(R * .5, R * 1.35, R * .85, R * .7); ctx.closePath(); inkFill(ctx, hc); }
     if (fh === 'beard' || fh === 'bigBeard') { const L = fh === 'bigBeard' ? 2.1 : 1.35; ctx.beginPath(); ctx.moveTo(-R * .15, R * .2); ctx.quadraticCurveTo(-R * .1, R * L, R * .5, R * L); ctx.quadraticCurveTo(R * 1.05, R * L * .9, R * .95, R * .35); ctx.quadraticCurveTo(R * .6, R * .75, R * .1, R * .55); ctx.closePath(); inkFill(ctx, hc); hatch(ctx, R * .1, R * .6, R * .6, R * .6, 3, .5, .3); }
