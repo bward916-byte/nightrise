@@ -29,7 +29,7 @@ const UI = {
     if (!turning) for (let i = 0; i < n; i++) { const x = ix + i * (sw + gap); this.panel(ctx, x, iy, sw, sw, 6, 'rgba(242,236,223,.8)'); const it = G.inv[i]; if (it) { ctx.fillStyle = it.col || '#3d4150'; ctx.beginPath(); ctx.roundRect(x + 8, iy + 8, sw - 16, sw - 16, 4); ctx.fill(); ctx.fillStyle = '#1c1a24'; ctx.font = `10px ${FONT}`; ctx.textAlign = 'center'; ctx.fillText(it.name, x + sw / 2, iy + sw - 7); } }
     const bx = W - 56, by = H - 190;
     if (!G.scene.noZoom && !turning) { this.button(ctx, 'zoomIn', bx, by, 44, 44, '+'); this.button(ctx, 'zoomOut', bx, by + 52, 44, 44, '–'); this.button(ctx, 'zoomFit', bx, by + 104, 44, 44, '⌖'); }
-    if (!turning) this.button(ctx, 'emotes', 12, H - 62, 78, 44, this.panelOpen ? 'Close' : 'Pose');
+    if (!turning) { this.button(ctx, 'emotes', 12, H - 62, 78, 44, this.panelOpen ? 'Close' : 'Pose'); this.button(ctx, 'mute', W - 56, 56, 44, 34, Music.on ? '♪' : '✕', true); }
     if (this.prompt && !turning) this.button(ctx, 'act', 100, H - 62, mobile ? 120 : 160, 44, this.prompt, false, '#ffe6a8');
     if (this.panelOpen) { const px = 12, py = H - 62 - 10 - (mobile ? 2 : 1) * 46, cols = mobile ? 5 : 10, bw = mobile ? 56 : 62; EMOTES.forEach((e, i) => { const r = Math.floor(i / cols), c = i % cols; this.button(ctx, 'emote:' + e.name, px + c * (bw + 5), py + r * 46, bw, 40, e.label, true); }); }
     if (turning) { ctx.restore(); return; }
