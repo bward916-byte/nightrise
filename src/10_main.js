@@ -24,58 +24,77 @@ const Game = {
   },
   frame(t) { const dt = Math.min(.05, (t - this.last) / 1000); this.last = t; this.update(dt); this.draw(); requestAnimationFrame(t => this.frame(t)); },
   // ---- streets
-  setStreet(st) { this.city = st; if (!st.crowd) st.crowd = new Crowd(st, 180); if (!st.coins) { const r = RNG(st.id.length * 91 + st.i * 7 + (st.dir === 'ns' ? 3 : 0)); st.coins = []; for (let i = 0; i < 9; i++) st.coins.push({ x: r.range(st.x0, st.x1), y: GROUND + r.range(8, WALK_DEPTH), v: r.pick([1, 1, 2, 5]), got: false }); } },
+  setStreet(st) { this.city = st; if (!st.crowd) st.crowd = new Crowd(st); if (!st.coins) { const r = RNG(st.id.length * 91 + st.i * 7 + (st.dir === 'ns' ? 3 : 0)); st.coins = []; for (let i = 0; i < (st.ch && st.ch.crowd > 140 ? 11 : 6); i++) st.coins.push({ x: r.range(st.x0, st.x1), y: GROUND + r.range(8, WALK_DEPTH), v: r.pick([1, 1, 2, 5]), got: false }); } },
   // night runs 8pm -> 5am over about 14 real minutes; the streets empty out after midnight and fill again toward dawn
   hour() { return 20 + ((this.clock * 50 / 840) % 1) * 9; },
   density() { const h = this.hour(); const late = smoothstep(23.5, 25.5, h) * (1 - smoothstep(27.5, 29, h)); const wave = .85 + .15 * Math.sin(this.clock * 50 * .05); return clamp(wave * (1 - late * .82), .12, 1); },
   homeHint() { const c = this.city; if (!c) return null; if (c.isHome) { const d = TOWER.x + TOWER.w / 2 - this.player.x; return Math.abs(d) < 80 ? 'Home' : (d > 0 ? '→ ' : '← ') + Math.max(1, Math.round(Math.abs(d) / BLOCK * 10) / 10) + ' blocks'; } if (c.dir === 'ns') { const k = c.inters.find(i => i.cross.i === HOME.i); const d = k.x - this.player.x; return Math.abs(d) < 60 ? 'Cross here' : (d > 0 ? '→ ' : '← ') + 'Main St'; } return 'Cross to an avenue'; },
   cross(it) {
     if (this.turn) return;
-    const p = this.player;
-    // Phase A: walk into the crossing while the camera pushes down the cross street.
-    // Phase B: come out the other side on the new street, camera pulling back.
-    this.turn = { phase: 'in', t: 0, dur: 1.15, it, from: this.city, x0: p.x, z0: Camera.zoom, cy0: Camera.y };
-    Camera.follow = null; Camera.locked = true; UI.prompt = null; this.action = null; UI.panelOpen = false;
-    p.facing = it.x >= p.x ? 1 : -1;
+    const to = City.get(it.cross.dir, it.cross.i);
+    this.turn = { t: 0, phase: 'up', from: this.city, to, it, k: it.k };
+    Camera.locked = true; UI.prompt = null; this.action = null; UI.panelOpen = false;
+    this.player.vx = this.player.vy = 0;
   },
   updateTurn(dt) {
-    const T = this.turn, p = this.player, it = T.it;
-    T.t += dt;
-    if (T.phase === 'in') {
-      const k = clamp(T.t / T.dur, 0, 1), e = easeInOut(k);
-      // he walks to the middle of the crossing, turns to face down the cross street, then recedes
-      const walk = clamp(k / .38, 0, 1);
-      p.x = lerp(T.x0, it.x, easeOut(walk));
-      p.vx = walk < 1 ? (it.x - T.x0) * 2.4 : 0;
-      p.depth = clamp((k - .34) / .66, 0, 1);
-      if (k > .3) { p.facing = 1; p.vx = p.depth < 1 ? 40 : 0; }
-      // camera follows him in and down the corridor
-      Camera.x = lerp(T.x0, it.x, easeOut(clamp(k / .5, 0, 1)));
-      Camera.y = lerp(T.cy0, -340, e);
-      Camera.zoom = Math.exp(lerp(Math.log(T.z0), Math.log(clamp(T.z0 * 3.4, 1.6, 4)), e));
-      Camera.tx = Camera.x; Camera.ty = Camera.y; Camera.tzoom = Camera.zoom;
-      this.fade = clamp((k - .78) / .22, 0, 1);
-      if (k >= 1) {
-        const to = City.get(it.cross.dir, it.cross.i);
+    const T = this.turn; T.t += dt;
+    const D = { up: .45, hold: .75, down: .45 }[T.phase];
+    if (T.t >= D) {
+      T.t = 0;
+      if (T.phase === 'up') T.phase = 'hold';
+      else if (T.phase === 'hold') {
+        const to = T.to, p = this.player;
         this.setStreet(to);
         const back = to.inters.find(q => q.cross.dir === T.from.dir && q.cross.i === T.from.i) || to.inters[0];
-        p.x = back.x; p.y = GROUND + 20; p.facing = it.x >= T.x0 ? 1 : -1; p.depth = 1;
-        this.where = to.name; UI.setHint(to.name, 2.5);
-        T.phase = 'out'; T.t = 0; T.dur = .95; T.ix = back.x;
-      }
-    } else {
-      const k = clamp(T.t / T.dur, 0, 1), e = easeOut(k);
-      this.fade = clamp(1 - k / .22, 0, 1);
-      p.depth = clamp(1 - k / .55, 0, 1);              // he walks back out toward the kerb
-      p.vx = p.depth > 0 ? 40 : p.facing * 30;
-      p.x = T.ix + p.facing * lerp(0, 66, e);
-      Camera.x = lerp(T.ix, p.x, e); Camera.y = lerp(-340, GROUND - 100, e);
-      Camera.zoom = Math.exp(lerp(Math.log(clamp(T.z0 * 3.4, 1.6, 4)), Math.log(T.z0), e));
-      Camera.tx = Camera.x; Camera.ty = Camera.y; Camera.tzoom = Camera.zoom;
-      if (k >= 1) { p.depth = 0; p.vx = 0; this.fade = 0; Camera.follow = p; Camera.locked = false; Camera.snapTo(p.x, p.y - 100, T.z0); Camera.setStop(Camera.nearestStop()); this.turn = null; }
+        p.x = back.x; p.y = GROUND + 20; p.facing = 1; p.depth = 0;
+        this.where = to.name; Camera.snapTo(p.x, p.y - 100, Camera.zoom);
+        T.phase = 'down';
+      } else { const p = this.player; Camera.follow = p; Camera.locked = false; Camera.snapTo(p.x, p.y - 100, 1); Camera.setStop(1); this.turn = null; UI.setHint(this.city.name, 2.5); return; }
     }
-    p.update(dt);
-    const c = this.city; if (c && c.crowd) c.crowd.update(dt, p, Camera.bounds());
+    this.player.update(dt);
+  },
+  // overhead schematic of the grid — also the transition between streets
+  drawMap(ctx, cam) {
+    const T = this.turn, W = cam.w, H = cam.h;
+    let k = clamp(T.t / ({ up: .45, hold: .75, down: .45 })[T.phase], 0, 1);
+    const open = T.phase === 'up' ? easeInOut(k) : T.phase === 'down' ? 1 - easeInOut(k) : 1;
+    if (open <= 0) return;
+    ctx.save(); ctx.globalAlpha = open;
+    ctx.fillStyle = `rgba(7,10,22,${.86 + .14 * open})`; ctx.fillRect(0, 0, W, H);
+    const pad = Math.min(W, H) * .14, size = Math.min(W - pad * 2, H - pad * 2 - 40), ox = W / 2 - size / 2, oy = H / 2 - size / 2 + 10;
+    const sc = 1 - (1 - open) * .12; ctx.translate(W / 2, H / 2 + 10); ctx.scale(sc, sc); ctx.translate(-W / 2, -(H / 2 + 10));
+    const px = i => ox + size * (i + .5) / 4, roadW = Math.max(12, size * .045);
+    // blocks
+    ctx.fillStyle = '#131a2e';
+    for (let a = 0; a <= 4; a++) for (let b = 0; b <= 4; b++) { const x = ox + size * a / 4 + roadW / 2, y = oy + size * b / 4 + roadW / 2, w = size / 4 - roadW, h = size / 4 - roadW; if (a < 4 && b < 4) { ctx.fillStyle = '#141c30'; ctx.fillRect(x, y, w, h); ctx.fillStyle = 'rgba(255,255,255,.03)'; ctx.fillRect(x, y, w, 3); } }
+    // streets
+    const cur = this.city, dest = T.to;
+    const line = (dir, i, col, wid) => { ctx.fillStyle = col; if (dir === 'ew') ctx.fillRect(ox - 20, px(i) - wid / 2, size + 40, wid); else ctx.fillRect(px(i) - wid / 2, oy - 20, wid, size + 40); };
+    for (let i = 0; i < 4; i++) { line('ew', i, '#20283f', roadW); line('ns', i, '#20283f', roadW); }
+    // highlight: from-street stays warm, to-street lights up during the hold
+    const travel = T.phase === 'hold' ? easeInOut(k) : T.phase === 'up' ? 0 : 1;
+    line(T.from.dir, T.from.i, mix('#ffd36a', '#20283f', travel), roadW);
+    line(T.to.dir, T.to.i, mix('#20283f', '#ffd36a', travel), roadW);
+    // the tower
+    const tx = T.from.dir === 'ew' ? px(HOME.i) : px(HOME.i), ty = px(HOME.i);
+    ctx.fillStyle = '#7fd4ff'; ctx.beginPath(); ctx.arc(px(2), px(HOME.i), roadW * .38, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#9ad8ff'; ctx.font = `bold ${Math.max(9, size * .026)}px ${FONT}`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText('HOME', px(2) + roadW * .8, px(HOME.i) - roadW * .9);
+    // you: slide from the old street to the new one through the corner
+    const corner = { x: T.from.dir === 'ew' ? px(T.it.cross.i) : px(T.from.i), y: T.from.dir === 'ew' ? px(T.from.i) : px(T.it.cross.i) };
+    const e = T.phase === 'hold' ? easeInOut(k) : T.phase === 'down' ? 1 : 0;
+    const you = { x: corner.x, y: corner.y };
+    // step out along the street you're turning onto
+    if (T.to.dir === 'ew') you.x = corner.x + size * .09 * e; else you.y = corner.y + size * .09 * e;
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(you.x, you.y, roadW * .42, 0, TAU); ctx.fill();
+    ctx.strokeStyle = `rgba(255,255,255,${.5 - .4 * travel})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(you.x, you.y, roadW * (.7 + travel * .9), 0, TAU); ctx.stroke();
+    // labels
+    ctx.font = `${Math.max(9, size * .028)}px ${FONT}`; ctx.textBaseline = 'middle';
+    for (let i = 0; i < 4; i++) { const hot = (T.to.dir === 'ew' && T.to.i === i); ctx.fillStyle = hot ? '#ffd36a' : 'rgba(210,220,240,.55)'; ctx.textAlign = 'right'; ctx.fillText(EW_NAMES[i], ox - 14, px(i)); }
+    ctx.textAlign = 'center';
+    for (let i = 0; i < 4; i++) { const hot = (T.to.dir === 'ns' && T.to.i === i); ctx.fillStyle = hot ? '#ffd36a' : 'rgba(210,220,240,.55)'; ctx.save(); ctx.translate(px(i), oy - 16); ctx.fillText(NS_NAMES[i], 0, 0); ctx.restore(); }
+    ctx.fillStyle = '#e8eef8'; ctx.font = `bold ${Math.max(13, size * .045)}px ${FONT}`; ctx.textAlign = 'center';
+    ctx.fillText(travel > .5 ? T.to.name : T.from.name, W / 2, oy + size + 34);
+    ctx.restore();
   },
   // ---- helpers scenes use
   movePlayer(dt, x0, x1, y0, y1) {
@@ -106,7 +125,7 @@ const Game = {
       else if (id && id.startsWith('emote:')) p.setEmote(id.slice(6), 2.4);
       if (id && !(id.startsWith('fl:') || id === 'esc')) Input.tap = null;
     }
-    if (this.turn) { this.updateTurn(dt); Input.endFrame(); return; }
+    if (this.turn) { this.updateTurn(dt); if (this.city && this.city.crowd) this.city.crowd.update(dt, this.player, Camera.bounds()); Camera.update(dt); Input.endFrame(); return; }
     if (this.state === 'play' && !this.fadeDir && !this.turn) {
       for (const e of EMOTES) if (Input.consume('Digit' + e.key)) p.setEmote(e.name, 2.4);
       if (this.scene !== ElevatorScene && (Input.consume('KeyE') || Input.consume('Space') || Input.consume('Enter')) && this.action) this.action();
@@ -126,6 +145,7 @@ const Game = {
     this.scene.draw(this, ctx, cam, pal);
     // night vignette
     const v = ctx.createRadialGradient(cam.w / 2, cam.h / 2, cam.h * .35, cam.w / 2, cam.h / 2, cam.h * .95); v.addColorStop(0, 'rgba(5,6,16,0)'); v.addColorStop(1, 'rgba(5,6,16,.55)'); ctx.fillStyle = v; ctx.fillRect(0, 0, cam.w, cam.h);
+    if (this.turn && !this.noUI) this.drawMap(ctx, cam);
     if (!this.noUI) UI.draw(ctx, this);
     if (this.state === 'intro') { const s = Camera.seq; if (s && s.i === 1) UI.title(ctx, 'NIGHTRISE', 'a regular guy · floor 83', Math.min(1, s.t)); }
     if (this.fade > 0) { ctx.fillStyle = `rgba(3,4,10,${this.fade})`; ctx.fillRect(0, 0, cam.w, cam.h); }
