@@ -24,7 +24,8 @@ const px = G.player.x; I.keys.KeyD = true; step(60); I.keys.KeyD = false; assert
 G.player.x = ctx.TOWER.x + ctx.TOWER.w / 2; G.update(1/60); assert(ctx.UI.prompt === 'Enter lobby'); act(); settle(); assert(G.scene.name === 'lobby', 'in lobby'); G.draw();
 // elevator to 83
 G.player.x = 1010; G.update(1/60); assert(ctx.UI.prompt === 'Call elevator'); act(); settle(); assert(G.scene.name === 'elevator'); G.draw();
-ctx.ElevatorScene.pick(G, 83); step(60 * 7); assert(G.scene.name === 'hall', 'arrived hall, is ' + G.scene.name); assert(G.floor === 83); G.draw();
+{ const b = ctx.UI.buttons.find(q => q.id === 'fl:83'); assert(b, 'floor button clickable after draw'); I.tap = { x: b.x + 5, y: b.y + 5 }; G.update(1/60); assert(ctx.ElevatorScene.mode === 'ride', 'tap picked a floor'); }
+step(60 * 7); assert(G.scene.name === 'hall', 'arrived hall, is ' + G.scene.name); assert(G.floor === 83); G.draw();
 // home
 G.player.x = 720; G.update(1/60); assert(ctx.UI.prompt === 'Go home', ctx.UI.prompt); act(); settle(); assert(G.scene.name === 'apartment'); G.draw();
 G.player.x = 972; G.update(1/60); assert(ctx.UI.prompt === 'Take wallet', ctx.UI.prompt); const c0 = G.cash; act(); assert(G.cash === c0 + 40, 'wallet');
