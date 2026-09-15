@@ -1,15 +1,15 @@
 // ===== main =====
 const Game = {
-  cinema: null, clock: 0, cash: 0, inv: [null, null, null, null, null, null], where: 'Street', state: 'intro', floor: 0, flags: {}, coins: [], stamps: [], fade: 0, fadeDir: 0, pending: null, flight: null,
+  cinema: null, energy: 80, food: 0, look: 8, clock: 0, cash: 0, inv: [null, null, null, null, null, null], where: 'Street', state: 'intro', floor: 0, flags: {}, coins: [], stamps: [], fade: 0, fadeDir: 0, pending: null, flight: null,
   init(canvas) {
     this.canvas = canvas; this.ctx = canvas.getContext('2d');
     this.setStreet(City.home());
     this.player = new Actor(genPlayer()); this.player.spec.walkSpeed = 3.2 * M; this.player.x = TOWER.x + TOWER.w / 2 + 160; this.player.y = GROUND + 20;
     this.cartMan = new Actor(genCartMan()); this.cartMan.x = this.city.alley.x + 101; this.cartMan.y = GROUND; this.cartMan.facing = -1; this.cartMan.posture = 'sit';
     const r = RNG(31); this.lobbyFolk = [0, 1, 2].map(i => { const a = new Actor(genCharacter(600 + i, i === 0 ? 'business' : i === 1 ? 'fancy' : 'elder')); a.x = [330, 700, 860][i]; a.y = [6, 14, 10][i]; a.facing = i === 0 ? 1 : -1; a.posture = i === 0 ? 'idle' : i === 1 ? 'phone' : 'sit'; if (i === 2) a.y = 4; return a; });
-    Object.assign(SCENES, { airport: AirportScene, flight: FlightScene, landmark: LandmarkScene });
+    Object.assign(SCENES, { airport: AirportScene, flight: FlightScene, landmark: LandmarkScene, factory: FactoryScene });
     this.crowdAir = [0, 1, 2, 3, 4].map(i => { const a = new Actor(genCharacter(800 + i * 5, i < 2 ? 'business' : i === 2 ? 'tourist' : undefined)); a.x = 300 + i * 220; a.y = 6 + (i % 3) * 8; a.facing = i % 2 ? -1 : 1; a.dir = a.facing; a.wander = i > 2; a.posture = i === 0 ? 'phone' : i === 1 ? 'crossArms' : 'idle'; return a; });
-    this.scene = ApartmentScene; this.floor = PLAYER_FLOOR; this.resize(); Input.init(canvas); ApartmentScene.enter(this, 'wake');
+    Econ.init(this); this.scene = ApartmentScene; this.floor = PLAYER_FLOOR; this.resize(); Input.init(canvas); ApartmentScene.enter(this, 'wake');
     if (typeof window !== 'undefined') { window.addEventListener('resize', () => this.resize()); this.last = performance.now(); requestAnimationFrame(t => this.frame(t)); }
     this.startIntro();
   },
@@ -17,8 +17,8 @@ const Game = {
   startIntro() {
     // he's asleep. alarm, sit up, stretch, stand, and then it's your night.
     this.state = 'intro'; const p = this.player, B = ApartmentScene.bed;
-    p.x = B - 54; p.y = -64; p.facing = 1; p.posture = 'inBed'; p.setEmote('inBed', 99); this.where = 'Home · 8304';
-    Camera.follow = null; Camera.locked = true; Camera.snapTo(B + 20, -96, 2.4); Camera.tzoom = 2.4; Camera.tx = B + 20; Camera.ty = -96;
+    p.x = B - 24; p.y = -30; p.facing = 1; p.posture = 'inBed'; p.setEmote('inBed', 99); this.where = 'Home · 8304';
+    Camera.follow = null; Camera.locked = true; Camera.snapTo(B + 20, -70, 3.2); Camera.tzoom = 3.2; Camera.tx = B + 20; Camera.ty = -70;
     this.cinema = { t: 0, step: 0 };
   },
   updateIntro(dt) {
@@ -26,12 +26,12 @@ const Game = {
     C.t += dt;
     const go = (step, at, fn) => { if (C.step === step && C.t >= at) { C.step++; fn(); } };
     go(0, 1.4, () => { UI.say('7:12pm.', 2); });
-    go(1, 2.6, () => { p.setEmote('sitUp', 2.4); p.x = B + 10; p.y = -44; UI.setHint('Silence that alarm when you are up.', 3); });
-    go(2, 4.6, () => { p.setEmote('stretch', 2.2); p.x = B + 120; p.y = 12; Camera.tzoom = 1.8; Camera.ty = -120; Camera.tx = B + 140; });
+    go(1, 2.6, () => { p.setEmote('sitUp', 2.4); p.x = B + 8; p.y = -16; UI.setHint('Silence that alarm when you are up.', 3); });
+    go(2, 4.6, () => { p.setEmote('stretch', 2.2); p.x = B + 62; p.y = 12; Camera.tzoom = 2.0; Camera.ty = -90; Camera.tx = B + 90; });
     go(3, 6.6, () => { p.setEmote('yawn', 1.4); });
     go(4, 7.9, () => {
-      p.emote = null; p.posture = 'idle'; p.x = B + 140; p.y = 12; p.facing = 1;
-      Camera.follow = p; Camera.locked = false; Camera.tzoom = 1.6; Camera.setStop(Camera.nearestStop());
+      p.emote = null; p.posture = 'idle'; p.x = B + 70; p.y = 12; p.facing = 1;
+      Camera.follow = p; Camera.locked = false; Camera.tzoom = 1.7; Camera.setStop(Camera.nearestStop());
       this.state = 'play'; this.introDone = true; this.cinema = null;
       UI.setHint(Camera.w < 700 ? 'Drag the left side to walk · E to interact' : 'WASD to walk · E to interact · 1–0 poses', 5);
     });
@@ -39,8 +39,10 @@ const Game = {
     if (Camera.locked) { Camera.x = lerp(Camera.x, Camera.tx || B + 10, 1 - Math.pow(.02, dt)); Camera.y = lerp(Camera.y, Camera.ty || -70, 1 - Math.pow(.02, dt)); Camera.zoom = Math.exp(lerp(Math.log(Camera.zoom), Math.log(Camera.tzoom), 1 - Math.pow(.05, dt))); }
   },
   frame(t) { const dt = Math.min(.05, (t - this.last) / 1000); this.last = t; this.update(dt); this.draw(); requestAnimationFrame(t => this.frame(t)); },
+  lookText() { const l = this.look || 0; return l < 15 ? 'Rough. Hoodie, stubble, tired eyes.' : l < 35 ? 'Presentable. Barely.' : l < 60 ? 'Not bad. People might look twice.' : l < 85 ? 'Sharp. You look like money.' : 'Immaculate.'; },
   // ---- streets
-  setStreet(st) { this.city = st; if (!st.crowd) st.crowd = new Crowd(st); if (!st.coins) { const r = RNG(st.id.length * 91 + st.i * 7 + (st.dir === 'ns' ? 3 : 0)); st.coins = []; for (let i = 0; i < (st.ch && st.ch.crowd > 140 ? 11 : 6); i++) st.coins.push({ x: r.range(st.x0, st.x1), y: GROUND + r.range(8, WALK_DEPTH), v: r.pick([1, 1, 2, 5]), got: false }); } },
+  setStreet(st) { this.city = st; if (!st.crowd) st.crowd = new Crowd(st); if (!st.coins) { const r = RNG(st.id.length * 91 + st.i * 7 + (st.dir === 'ns' ? 3 : 0)); st.coins = []; for (let i = 0; i < (st.ch && st.ch.crowd > 140 ? 11 : 6); i++) st.coins.push({ x: r.range(st.x0, st.x1), y: GROUND + r.range(8, WALK_DEPTH), v: r.pick([1, 1, 2, 5]), got: false }); }
+    if (!st.bottleSpots) { const r = RNG(st.i * 13 + 5); st.bottleSpots = []; if (st.feature === 'industrial' || st.feature === 'construction' || st.feature === 'market') for (let i = 0; i < 8; i++) st.bottleSpots.push({ x: r.range(st.x0 + 200, st.x1 - 200), y: GROUND + r.range(10, WALK_DEPTH), got: false }); } },
   // night runs 8pm -> 5am over about 14 real minutes; the streets empty out after midnight and fill again toward dawn
   hour() { return 20 + ((this.clock * 50 / 840) % 1) * 9; },
   density() { const h = this.hour(); const late = smoothstep(23.5, 25.5, h) * (1 - smoothstep(27.5, 29, h)); const wave = .85 + .15 * Math.sin(this.clock * 50 * .05); return clamp(wave * (1 - late * .82), .12, 1); },
@@ -56,7 +58,7 @@ const Game = {
   // ---- helpers scenes use
   movePlayer(dt, x0, x1, y0, y1) {
     const p = this.player; if (this.state !== 'play') { p.vx = p.vy = 0; return; }
-    const spd = p.spec.walkSpeed * (Input.keys.ShiftLeft ? 1.8 : 1) * (Camera.zoom < .3 ? 2 : 1);
+    const spd = p.spec.walkSpeed * (Input.keys.ShiftLeft ? 1.8 : 1) * (Camera.zoom < .3 ? 2 : 1) * Econ.speedMul(this);
     p.vx = Input.axisX * spd; p.vy = Input.axisY * spd * .6;
     p.x = clamp(p.x + p.vx * dt, x0, x1); p.y = clamp(p.y + p.vy * dt, y0, y1);
   },
@@ -68,7 +70,8 @@ const Game = {
   update(dt) {
     Input.update(); UI.update(dt); this.clock += dt / 50;
     if (!Sfx.ok && (Input.tap || Object.values(Input.pressed).some(Boolean))) Sfx.init();
-    Music.follow(this); Music.update(dt);
+    Music.follow(this); Music.update(dt); Econ.tick(this, dt);
+    if (Shop.open) { Shop.update(this); Input.endFrame(); return; }
     const p = this.player;
     if (!this.scene.noZoom && !Camera.seq) {
       if (Input.wheel) Camera.zoomBy(Math.pow(1.0018, -Input.wheel));
@@ -89,7 +92,7 @@ const Game = {
     if (this.state === 'play' && !this.fadeDir) {
       for (const e of EMOTES) if (Input.consume('Digit' + e.key)) p.setEmote(e.name, 2.4);
       if (Input.consume('KeyM')) { Music.on = !Music.on; UI.say(Music.on ? 'Music on' : 'Music off', 1.2); }
-      if (this.scene !== ElevatorScene && (Input.consume('KeyE') || Input.consume('Space') || Input.consume('Enter')) && this.action) this.action();
+      if (this.scene !== ElevatorScene && this.action && (Input.consume('KeyE') || Input.consume('Space') || Input.consume('Enter'))) this.action();
       this.scene.update(this, dt);
     } else if (this.scene === ElevatorScene) this.scene.update(this, dt);
     else { p.vx = p.vy = 0; if (this.scene === StreetScene) { this.city.crowd.update(dt, p, Camera.bounds()); if (this.city.isHome) this.cartMan.update(dt); } }
@@ -107,6 +110,7 @@ const Game = {
     // night vignette
     const v = ctx.createRadialGradient(cam.w / 2, cam.h / 2, cam.h * .35, cam.w / 2, cam.h / 2, cam.h * .95); v.addColorStop(0, 'rgba(5,6,16,0)'); v.addColorStop(1, 'rgba(5,6,16,.55)'); ctx.fillStyle = v; ctx.fillRect(0, 0, cam.w, cam.h);
     if (!this.noUI) UI.draw(ctx, this);
+    Shop.draw(ctx, this);
     if (this.cinema && this.cinema.t < 2.2) UI.title(ctx, 'NIGHTRISE', 'a regular guy · floor 83', clamp(Math.min(this.cinema.t, 2.2 - this.cinema.t) * 2, 0, 1));
     if (this.fade > 0) { ctx.fillStyle = `rgba(3,4,10,${this.fade})`; ctx.fillRect(0, 0, cam.w, cam.h); }
     Input.drawStick(ctx);
