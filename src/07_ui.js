@@ -17,7 +17,7 @@ const UI = {
   },
   hit(p) { for (let i = this.buttons.length - 1; i >= 0; i--) { const b = this.buttons[i]; if (p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) return b.id; } return null; },
   draw(ctx, G) {
-    this.buttons = []; const W = Camera.w, H = Camera.h, mobile = W < 700;
+    const W = Camera.w, H = Camera.h, mobile = W < 700;
     ctx.save(); ctx.textBaseline = 'middle';
     this.panel(ctx, 12, 12, 150, 38); ctx.fillStyle = '#1c1a24'; ctx.font = `bold 17px ${FONT}`; ctx.textAlign = 'left'; ctx.fillText('$' + G.cash.toLocaleString(), 24, 31);
     const hr = G.hour() % 24, h12 = ((Math.floor(hr) + 11) % 12) + 1, mn = Math.floor((hr % 1) * 60); ctx.font = `12px ${FONT}`; ctx.textAlign = 'right'; ctx.fillText(`${h12}:${mn < 10 ? '0' : ''}${mn}${Math.floor(hr) % 24 >= 12 ? 'pm' : 'am'}`, 152, 31);
@@ -41,9 +41,8 @@ const UI = {
     }
     const bx = W - 56, by = H - 190;
     if (!G.scene.noZoom && !turning) { this.button(ctx, 'zoomIn', bx, by, 44, 44, '+'); this.button(ctx, 'zoomOut', bx, by + 52, 44, 44, '–'); this.button(ctx, 'zoomFit', bx, by + 104, 44, 44, '⌖'); }
-    if (!turning) { this.button(ctx, 'emotes', 12, H - 62, 64, 44, this.panelOpen ? 'Close' : 'Pose'); this.button(ctx, 'pack', 82, H - 62, 64, 44, this.packOpen ? 'Close' : 'Pack'); this.button(ctx, 'mute', W - 56, 56, 44, 34, Music.on ? '♪' : '✕', true); }
-    if (this.prompt && !turning) this.button(ctx, 'act', 154, H - 62, mobile ? Math.min(150, W - 220) : 170, 44, this.prompt, false, '#ffe6a8');
-    if (this.panelOpen) { const px = 12, py = H - 62 - 10 - (mobile ? 2 : 1) * 46, cols = mobile ? 5 : 10, bw = mobile ? 56 : 62; EMOTES.forEach((e, i) => { const r = Math.floor(i / cols), c = i % cols; this.button(ctx, 'emote:' + e.name, px + c * (bw + 5), py + r * 46, bw, 40, e.label, true); }); }
+    if (!turning) { this.button(ctx, 'pack', 12, H - 62, 64, 44, this.packOpen ? 'Close' : 'Pack'); this.button(ctx, 'mute', W - 56, 56, 44, 34, Music.on ? '♪' : '✕', true); }
+    if (this.prompt && !turning) this.button(ctx, 'act', 84, H - 62, mobile ? Math.min(180, W - 160) : 190, 44, this.prompt, false, '#ffe6a8');
     if (this.hintT > 0 && this.hint) { ctx.globalAlpha = Math.min(1, this.hintT * 2); ctx.font = `15px ${FONT}`; const w = Math.min(W - 24, ctx.measureText(this.hint).width + 28); this.panel(ctx, W / 2 - w / 2, 62, w, 34, 17); ctx.fillStyle = '#1c1a24'; ctx.textAlign = 'center'; ctx.fillText(this.hint, W / 2, 79, w - 20); ctx.globalAlpha = 1; }
     if (this.toast) { ctx.font = `14px ${FONT}`; const w = Math.min(W - 40, ctx.measureText(this.toast.t).width + 28), ty = H - 62 - 46 - (this.packOpen ? 130 : 0); this.panel(ctx, W / 2 - w / 2, ty, w, 32, 16, '#ffe6a8'); ctx.fillStyle = '#1c1a24'; ctx.textAlign = 'center'; ctx.fillText(this.toast.t, W / 2, ty + 16, w - 16); }
     ctx.restore();
